@@ -3,6 +3,7 @@ import { icons } from "lucide";
 import "./style.css";
 
 const PHOTO = `${import.meta.env.BASE_URL}temple-couple.jpg`;
+const MUSIC_PREVIEW = `${import.meta.env.BASE_URL}audio/duo-xingyun-preview.m4a`;
 const defaults = {
   profile: {
     a: "小张同学",
@@ -226,6 +227,19 @@ new Vue({
       navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`);
   },
   methods: {
+    async toggleMusic() {
+      const player = this.$refs.bgm;
+      if (this.music) {
+        player.pause();
+        return;
+      }
+      try {
+        await player.play();
+      } catch (error) {
+        this.music = false;
+        console.warn("音乐播放失败", error);
+      }
+    },
     go(t) {
       this.tab = t;
       this.menu = false;
@@ -309,7 +323,7 @@ new Vue({
   template: `
 <div class="app" v-if="ready">
  <span v-for="h in hearts" :key="h.id" class="rain" :style="{left:h.left+'%',animationDelay:h.delay+'s',fontSize:h.size+'px'}">♥</span>
- <header><button class="brand" @click="go('home')"><span><v-icon name="heart" fill="currentColor"/></span><b>Only Us</b><small>我们的恋爱空间</small></button><nav><button v-for="n in nav" :key="n[0]" :class="{active:tab===n[0]}" @click="go(n[0])"><v-icon :name="n[1]"/>{{n[2]}}</button></nav><div class="tools"><button title="背景音乐" @click="music=!music"><v-icon :name="music?'music-2':'volume-x'"/></button><button title="爱心雨" @click="rain"><v-icon name="sparkles"/></button><button class="hamb" @click="menu=!menu"><v-icon name="menu"/></button></div></header>
+ <header><button class="brand" @click="go('home')"><span><v-icon name="heart" fill="currentColor"/></span><b>Only Us</b><small>我们的恋爱空间</small></button><nav><button v-for="n in nav" :key="n[0]" :class="{active:tab===n[0]}" @click="go(n[0])"><v-icon :name="n[1]"/>{{n[2]}}</button></nav><div class="tools"><span class="music-label" v-if="music"><i></i>多幸运 · 韩安旭</span><span class="music-hearts" v-if="music" aria-hidden="true"><i v-for="n in 6" :key="n" :style="{'--heart-index':n}">♥</i></span><button :title="music?'暂停《多幸运》':'播放《多幸运》'" @click="toggleMusic"><v-icon :name="music?'music-2':'volume-x'"/></button><button title="爱心雨" @click="rain"><v-icon name="sparkles"/></button><button class="hamb" @click="menu=!menu"><v-icon name="menu"/></button></div></header><audio ref="bgm" :src="'${MUSIC_PREVIEW}'" preload="none" loop @pause="music=false" @play="music=true"></audio>
  <div class="mobile-menu" v-if="menu"><button v-for="n in nav" :key="n[0]" @click="go(n[0])"><v-icon :name="n[1]"/>{{n[2]}}</button></div>
  <main>
   <template v-if="tab==='home'">

@@ -9,4 +9,7 @@
 
 /* Keep the couple visible while preserving clear space for the hero copy. */
 .hero>img{object-position:center 68%}.shade{background:linear-gradient(90deg,rgba(30,24,28,.72) 0,rgba(30,24,28,.36) 42%,rgba(30,24,28,.06) 76%)}
+.music-label{display:flex;align-items:center;gap:7px;font-size:11px;color:#866773;white-space:nowrap;margin-right:5px}.music-label i{width:6px;height:6px;border-radius:50%;background:var(--pink);box-shadow:0 0 0 4px #f9dce7;animation:music-pulse 1.2s ease-in-out infinite}@keyframes music-pulse{50%{transform:scale(1.45);opacity:.65}}
+.tools{position:relative}.music-hearts{position:absolute;left:50%;top:38px;width:70px;height:1px;pointer-events:none;z-index:40}.music-hearts i{position:absolute;left:calc(var(--heart-index) * 9px);top:0;color:#ed6c99;font-style:normal;font-size:12px;animation:music-heart-float 2.4s ease-out infinite;animation-delay:calc(var(--heart-index) * -.34s);opacity:0}@keyframes music-heart-float{0%{transform:translate(0,0) scale(.65);opacity:0}18%{opacity:.9}100%{transform:translate(calc((var(--heart-index) - 3) * 5px),-58px) rotate(18deg) scale(1.15);opacity:0}}
 @media(max-width:800px){.hero>img{object-position:center 76%}.shade{background:linear-gradient(0deg,rgba(30,22,27,.78) 0,rgba(30,22,27,.18) 58%,rgba(30,22,27,.04) 100%)}}
+@media(max-width:800px){.music-label{display:none}}
