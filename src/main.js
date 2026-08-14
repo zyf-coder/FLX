@@ -1,20 +1,307 @@
-import Vue from 'vue/dist/vue.esm.js';
-import {icons} from 'lucide';
-import './style.css';
+import Vue from "vue/dist/vue.esm.js";
+import { icons } from "lucide";
+import "./style.css";
 
-const PHOTO='https://images.unsplash.com/photo-1522673607200-164d1b6ce486?auto=format&fit=crop&w=1400&q=85';
-const defaults={profile:{a:'小张同学',b:'徐老师',since:'2023-05-20',quote:'世界很大，刚好我们遇见了。'},photos:[{id:1,src:PHOTO,title:'第一次旅行',date:'2024-02-14'}],todos:[{id:1,text:'一起看一次海边日出',done:true},{id:2,text:'拍一组四季合照',done:false},{id:3,text:'去对方长大的地方走走',done:false}],days:[{id:1,title:'在一起纪念日',date:'2026-05-20',icon:'💗'},{id:2,title:'她的生日',date:'2026-10-18',icon:'🎂'}],notes:[{id:1,author:'徐老师',text:'今天也比昨天更喜欢你一点。',time:'刚刚'}],stories:[{id:1,date:'2023.05.20',title:'故事开始的那天',text:'晚风刚好，牵手也刚好。'},{id:2,date:'2023.10.02',title:'第一次一起旅行',text:'走过陌生的街，也更熟悉了彼此。'}]};
-const storage={get:()=>new Promise(ok=>{const r=indexedDB.open('only-us',1);r.onupgradeneeded=()=>r.result.createObjectStore('data');r.onsuccess=()=>{const q=r.result.transaction('data').objectStore('data').get('state');q.onsuccess=()=>ok(q.result||defaults);q.onerror=()=>ok(defaults)}}),set:v=>new Promise(ok=>{const r=indexedDB.open('only-us',1);r.onsuccess=()=>{const q=r.result.transaction('data','readwrite').objectStore('data').put(v,'state');q.onsuccess=ok}})};
-defaults.profile={a:'徐老师',b:'小张同学',since:'2025-10-26',quote:'世界很大，刚好我们遇见了。'};
-const iconKey=name=>name.split('-').map(x=>x[0].toUpperCase()+x.slice(1)).join('');
-const drawIcon=(h,node,fill)=>h(node[0],{attrs:{...node[1],...(node[0]==='svg'&&fill?{fill}:{})}},(node[2]||[]).map(x=>drawIcon(h,x)));
-Vue.component('v-icon',{functional:true,props:['name','fill'],render(h,ctx){return drawIcon(h,icons[iconKey(ctx.props.name)],ctx.props.fill)}});
-Vue.component('love-timeline',{props:['items'],template:`<div class="timeline"><article v-for="(x,i) in items" :key="x.id"><i><v-icon v-if="i===items.length-1" name="heart" fill="currentColor"/><span v-else/></i><div><time>{{x.date}}</time><b>{{x.title}}</b><p>{{x.text}}</p></div></article></div>`});
-Vue.component('love-note',{props:['note'],template:`<article class="note"><div>{{note.author[0]}}</div><p><b>{{note.author}}</b><span>{{note.text}}</span><small>{{note.time}}</small></p></article>`});
+const PHOTO =
+  "https://images.unsplash.com/photo-1522673607200-164d1b6ce486?auto=format&fit=crop&w=1400&q=85";
+const defaults = {
+  profile: {
+    a: "小张同学",
+    b: "徐老师",
+    since: "2023-05-20",
+    quote: "世界很大，刚好我们遇见了。",
+  },
+  photos: [{ id: 1, src: PHOTO, title: "第一次旅行", date: "2024-02-14" }],
+  todos: [
+    { id: 1, text: "一起看一次海边日出", done: true },
+    { id: 2, text: "拍一组四季合照", done: false },
+    { id: 3, text: "去对方长大的地方走走", done: false },
+  ],
+  days: [
+    { id: 1, title: "在一起纪念日", date: "2026-05-20", icon: "💗" },
+    { id: 2, title: "她的生日", date: "2026-10-18", icon: "🎂" },
+  ],
+  notes: [
+    {
+      id: 1,
+      author: "徐老师",
+      text: "今天也比昨天更喜欢你一点。",
+      time: "刚刚",
+    },
+  ],
+  stories: [
+    {
+      id: 1,
+      date: "2023.05.20",
+      title: "故事开始的那天",
+      text: "晚风刚好，牵手也刚好。",
+    },
+    {
+      id: 2,
+      date: "2023.10.02",
+      title: "第一次一起旅行",
+      text: "走过陌生的街，也更熟悉了彼此。",
+    },
+  ],
+};
+const storage = {
+  get: () =>
+    new Promise((ok) => {
+      const r = indexedDB.open("only-us", 1);
+      r.onupgradeneeded = () => r.result.createObjectStore("data");
+      r.onsuccess = () => {
+        const q = r.result.transaction("data").objectStore("data").get("state");
+        q.onsuccess = () => ok(q.result || defaults);
+        q.onerror = () => ok(defaults);
+      };
+    }),
+  set: (v) =>
+    new Promise((ok) => {
+      const r = indexedDB.open("only-us", 1);
+      r.onsuccess = () => {
+        const q = r.result
+          .transaction("data", "readwrite")
+          .objectStore("data")
+          .put(v, "state");
+        q.onsuccess = ok;
+      };
+    }),
+};
+defaults.profile = {
+  a: "徐老师",
+  b: "小张同学",
+  since: "2025-10-26",
+  quote: "世界很大，刚好我们遇见了。",
+};
+const iconKey = (name) =>
+  name
+    .split("-")
+    .map((x) => x[0].toUpperCase() + x.slice(1))
+    .join("");
+const drawIcon = (h, node, fill) =>
+  h(
+    node[0],
+    { attrs: { ...node[1], ...(node[0] === "svg" && fill ? { fill } : {}) } },
+    (node[2] || []).map((x) => drawIcon(h, x))
+  );
+Vue.component("v-icon", {
+  functional: true,
+  props: ["name", "fill"],
+  render(h, ctx) {
+    return drawIcon(h, icons[iconKey(ctx.props.name)], ctx.props.fill);
+  },
+});
+Vue.component("love-timeline", {
+  props: ["items"],
+  template: `<div class="timeline"><article v-for="(x,i) in items" :key="x.id"><i><v-icon v-if="i===items.length-1" name="heart" fill="currentColor"/><span v-else/></i><div><time>{{x.date}}</time><b>{{x.title}}</b><p>{{x.text}}</p></div></article></div>`,
+});
+Vue.component("love-note", {
+  props: ["note"],
+  template: `<article class="note"><div>{{note.author[0]}}</div><p><b>{{note.author}}</b><span>{{note.text}}</span><small>{{note.time}}</small></p></article>`,
+});
 
-Vue.component('anniversary-page',{data:()=>({now:Date.now(),timer:null,together:{title:'徐老师和小张同学在一起已经',date:'2025-10-26T00:00:00'},countdown:[{id:1,title:'徐老师还有',date:'2026-11-17T00:00:00',rule:'每年十月初十',remind:'提前30天'},{id:2,title:'小张同学的生日还有',date:'2026-12-08T00:00:00',rule:'每年十月三十',remind:'提前30天'}],elapsed:[{id:3,title:'求婚已经',date:'2026-07-25T00:00:00',caption:'2026-07-25 周六'},{id:4,title:'认识了已经',date:'2025-10-18T00:00:00',caption:'相爱于2025年10月18日'}]}),mounted(){this.timer=setInterval(()=>this.now=Date.now(),1000)},beforeDestroy(){clearInterval(this.timer)},methods:{parts(date,reverse=false){const gap=Math.max(0,reverse?this.now-new Date(date).getTime():new Date(date).getTime()-this.now);return{days:Math.floor(gap/86400000),hours:Math.floor(gap/3600000)%24,minutes:Math.floor(gap/60000)%60,seconds:Math.floor(gap/1000)%60}},pad(n){return String(n).padStart(2,'0')}},template:`<section class="anniversary-page"><div class="anniversary-head"><div><span>倒数纪念日</span><h2>全部</h2></div><button title="添加纪念日"><v-icon name="plus"/></button></div><article class="together-card"><p>{{together.title}}</p><div class="big-duration"><strong>{{parts(together.date,true).days}}</strong><span>天</span><strong>{{pad(parts(together.date,true).hours)}}</strong><span>时</span><strong>{{pad(parts(together.date,true).minutes)}}</strong><span>分</span><strong>{{pad(parts(together.date,true).seconds)}}</strong><span>秒</span></div><footer>2025-10-26 周日</footer></article><div class="day-section"><div class="section-label"><span>倒数</span><i/><v-icon name="chevron-up"/></div><div class="anniversary-grid"><article class="event-card countdown-card" v-for="item in countdown" :key="item.id"><div class="event-title"><i><v-icon name="heart"/></i><b>{{item.title}}</b></div><div class="event-duration"><strong>{{parts(item.date).days}}</strong><span>天</span><strong>{{pad(parts(item.date).hours)}}</strong><span>时</span><strong>{{pad(parts(item.date).minutes)}}</strong><span>分</span><strong>{{pad(parts(item.date).seconds)}}</strong><span>秒</span></div><div class="event-meta"><span><v-icon name="refresh-cw"/>{{item.rule}}</span><span><v-icon name="bell"/>{{item.remind}}</span></div><v-icon class="card-mark" name="heart-handshake"/></article></div></div><div class="day-section elapsed-section"><div class="section-label"><span>正数</span><i/><v-icon name="chevron-up"/></div><div class="anniversary-grid"><article class="event-card elapsed-card" v-for="item in elapsed" :key="item.id"><div class="event-title"><i><v-icon name="heart"/></i><b>{{item.title}}</b></div><div class="event-duration"><strong>{{parts(item.date,true).days}}</strong><span>天</span><template v-if="item.id===4"><strong>{{pad(parts(item.date,true).hours)}}</strong><span>时</span><strong>{{pad(parts(item.date,true).minutes)}}</strong><span>分</span><strong>{{pad(parts(item.date,true).seconds)}}</strong><span>秒</span></template></div><div class="event-meta">{{item.caption}}</div><v-icon class="card-mark" name="heart-handshake"/></article></div></div></section>`});
+Vue.component("anniversary-page", {
+  data: () => ({
+    now: Date.now(),
+    timer: null,
+    together: {
+      title: "徐老师和小张同学在一起已经",
+      date: "2025-10-26T00:00:00",
+    },
+    countdown: [
+      {
+        id: 1,
+        title: "徐老师还有",
+        date: "2026-11-17T00:00:00",
+        rule: "每年十月初十",
+        remind: "提前30天",
+      },
+      {
+        id: 2,
+        title: "小张同学的生日还有",
+        date: "2026-12-08T00:00:00",
+        rule: "每年十月三十",
+        remind: "提前30天",
+      },
+    ],
+    elapsed: [
+      {
+        id: 3,
+        title: "求婚已经",
+        date: "2026-07-25T00:00:00",
+        caption: "2026-07-25 周六",
+      },
+      {
+        id: 4,
+        title: "认识了已经",
+        date: "2025-10-18T00:00:00",
+        caption: "相爱于2025年10月18日",
+      },
+    ],
+  }),
+  mounted() {
+    this.timer = setInterval(() => (this.now = Date.now()), 1000);
+  },
+  beforeDestroy() {
+    clearInterval(this.timer);
+  },
+  methods: {
+    parts(date, reverse = false) {
+      const gap = Math.max(
+        0,
+        reverse
+          ? this.now - new Date(date).getTime()
+          : new Date(date).getTime() - this.now
+      );
+      return {
+        days: Math.floor(gap / 86400000),
+        hours: Math.floor(gap / 3600000) % 24,
+        minutes: Math.floor(gap / 60000) % 60,
+        seconds: Math.floor(gap / 1000) % 60,
+      };
+    },
+    pad(n) {
+      return String(n).padStart(2, "0");
+    },
+  },
+  template: `<section class="anniversary-page"><div class="anniversary-head"><div><span>倒数纪念日</span><h2>全部</h2></div><button title="添加纪念日"><v-icon name="plus"/></button></div><article class="together-card"><p>{{together.title}}</p><div class="big-duration"><strong>{{parts(together.date,true).days}}</strong><span>天</span><strong>{{pad(parts(together.date,true).hours)}}</strong><span>时</span><strong>{{pad(parts(together.date,true).minutes)}}</strong><span>分</span><strong>{{pad(parts(together.date,true).seconds)}}</strong><span>秒</span></div><footer>2025-10-26 周日</footer></article><div class="day-section"><div class="section-label"><span>倒数</span><i/><v-icon name="chevron-up"/></div><div class="anniversary-grid"><article class="event-card countdown-card" v-for="item in countdown" :key="item.id"><div class="event-title"><i><v-icon name="heart"/></i><b>{{item.title}}</b></div><div class="event-duration"><strong>{{parts(item.date).days}}</strong><span>天</span><strong>{{pad(parts(item.date).hours)}}</strong><span>时</span><strong>{{pad(parts(item.date).minutes)}}</strong><span>分</span><strong>{{pad(parts(item.date).seconds)}}</strong><span>秒</span></div><div class="event-meta"><span><v-icon name="refresh-cw"/>{{item.rule}}</span><span><v-icon name="bell"/>{{item.remind}}</span></div><v-icon class="card-mark" name="heart-handshake"/></article></div></div><div class="day-section elapsed-section"><div class="section-label"><span>正数</span><i/><v-icon name="chevron-up"/></div><div class="anniversary-grid"><article class="event-card elapsed-card" v-for="item in elapsed" :key="item.id"><div class="event-title"><i><v-icon name="heart"/></i><b>{{item.title}}</b></div><div class="event-duration"><strong>{{parts(item.date,true).days}}</strong><span>天</span><template v-if="item.id===4"><strong>{{pad(parts(item.date,true).hours)}}</strong><span>时</span><strong>{{pad(parts(item.date,true).minutes)}}</strong><span>分</span><strong>{{pad(parts(item.date,true).seconds)}}</strong><span>秒</span></template></div><div class="event-meta">{{item.caption}}</div><v-icon class="card-mark" name="heart-handshake"/></article></div></div></section>`,
+});
 
-new Vue({el:'#app',data:{ready:false,state:defaults,tab:'home',modal:null,music:false,hearts:[],menu:false,nav:[['home','house','主页'],['album','images','相册'],['list','square-check-big','清单'],['days','calendar-heart','纪念日'],['notes','message-circle','留言'],['story','book-heart','故事']]},computed:{loveDays(){return Math.max(0,Math.floor((Date.now()-new Date(this.state.profile.since).getTime())/86400000))},startDate(){return new Date(this.state.profile.since).toLocaleDateString('zh-CN',{year:'numeric',month:'long',day:'numeric'})},doneCount(){return this.state.todos.filter(x=>x.done).length}},watch:{state:{deep:true,handler(v){if(this.ready)storage.set(JSON.parse(JSON.stringify(v)))}}},async mounted(){this.state=await storage.get();this.ready=true;if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js')},methods:{go(t){this.tab=t;this.menu=false;scrollTo({top:0,behavior:'smooth'})},until(d){return Math.ceil((new Date(d).getTime()-Date.now())/86400000)},rain(){this.hearts=Array.from({length:28},(_,i)=>({id:i,left:Math.random()*100,delay:Math.random()*1.8,size:14+Math.random()*22}));setTimeout(()=>this.hearts=[],4000)},addTodo(){const text=this.$refs.todo.value.trim();if(text)this.state.todos.push({id:Date.now(),text,done:false});this.$refs.todo.value=''},addNote(){const text=this.$refs.note.value.trim();if(text)this.state.notes.unshift({id:Date.now(),author:this.state.profile.a,text,time:'刚刚'});this.$refs.note.value=''},photos(e){[...e.target.files].forEach(f=>{const r=new FileReader();r.onload=()=>this.state.photos.push({id:Date.now()+Math.random(),src:r.result,title:f.name.replace(/\.[^.]+$/,''),date:new Date().toISOString().slice(0,10)});r.readAsDataURL(f)})},saveModal(e){const f=new FormData(e.target);if(this.modal==='day')this.state.days.push({id:Date.now(),title:f.get('title'),date:f.get('date'),icon:'💗'});else this.state.stories.push({id:Date.now(),title:f.get('title'),date:f.get('date').replaceAll('-','.'),text:f.get('text')});this.modal=null},exportData(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(this.state,null,2)],{type:'application/json'}));a.download='only-us-backup.json';a.click()},importData(e){const r=new FileReader();r.onload=()=>this.state=JSON.parse(r.result);r.readAsText(e.target.files[0])}},template:`
+new Vue({
+  el: "#app",
+  data: {
+    ready: false,
+    state: defaults,
+    tab: "home",
+    modal: null,
+    music: false,
+    hearts: [],
+    menu: false,
+    nav: [
+      ["home", "house", "主页"],
+      ["album", "images", "相册"],
+      ["list", "square-check-big", "清单"],
+      ["days", "calendar-heart", "纪念日"],
+      ["notes", "message-circle", "留言"],
+      ["story", "book-heart", "故事"],
+    ],
+  },
+  computed: {
+    loveDays() {
+      return Math.max(
+        0,
+        Math.floor(
+          (Date.now() - new Date(this.state.profile.since).getTime()) / 86400000
+        )
+      );
+    },
+    startDate() {
+      return new Date(this.state.profile.since).toLocaleDateString("zh-CN", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+    },
+    doneCount() {
+      return this.state.todos.filter((x) => x.done).length;
+    },
+  },
+  watch: {
+    state: {
+      deep: true,
+      handler(v) {
+        if (this.ready) storage.set(JSON.parse(JSON.stringify(v)));
+      },
+    },
+  },
+  async mounted() {
+    this.state = await storage.get();
+    this.ready = true;
+    if ("serviceWorker" in navigator)
+      navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`);
+  },
+  methods: {
+    go(t) {
+      this.tab = t;
+      this.menu = false;
+      scrollTo({ top: 0, behavior: "smooth" });
+    },
+    until(d) {
+      return Math.ceil((new Date(d).getTime() - Date.now()) / 86400000);
+    },
+    rain() {
+      this.hearts = Array.from({ length: 28 }, (_, i) => ({
+        id: i,
+        left: Math.random() * 100,
+        delay: Math.random() * 1.8,
+        size: 14 + Math.random() * 22,
+      }));
+      setTimeout(() => (this.hearts = []), 4000);
+    },
+    addTodo() {
+      const text = this.$refs.todo.value.trim();
+      if (text) this.state.todos.push({ id: Date.now(), text, done: false });
+      this.$refs.todo.value = "";
+    },
+    addNote() {
+      const text = this.$refs.note.value.trim();
+      if (text)
+        this.state.notes.unshift({
+          id: Date.now(),
+          author: this.state.profile.a,
+          text,
+          time: "刚刚",
+        });
+      this.$refs.note.value = "";
+    },
+    photos(e) {
+      [...e.target.files].forEach((f) => {
+        const r = new FileReader();
+        r.onload = () =>
+          this.state.photos.push({
+            id: Date.now() + Math.random(),
+            src: r.result,
+            title: f.name.replace(/\.[^.]+$/, ""),
+            date: new Date().toISOString().slice(0, 10),
+          });
+        r.readAsDataURL(f);
+      });
+    },
+    saveModal(e) {
+      const f = new FormData(e.target);
+      if (this.modal === "day")
+        this.state.days.push({
+          id: Date.now(),
+          title: f.get("title"),
+          date: f.get("date"),
+          icon: "💗",
+        });
+      else
+        this.state.stories.push({
+          id: Date.now(),
+          title: f.get("title"),
+          date: f.get("date").replaceAll("-", "."),
+          text: f.get("text"),
+        });
+      this.modal = null;
+    },
+    exportData() {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(
+        new Blob([JSON.stringify(this.state, null, 2)], {
+          type: "application/json",
+        })
+      );
+      a.download = "only-us-backup.json";
+      a.click();
+    },
+    importData(e) {
+      const r = new FileReader();
+      r.onload = () => (this.state = JSON.parse(r.result));
+      r.readAsText(e.target.files[0]);
+    },
+  },
+  template: `
 <div class="app" v-if="ready">
  <span v-for="h in hearts" :key="h.id" class="rain" :style="{left:h.left+'%',animationDelay:h.delay+'s',fontSize:h.size+'px'}">♥</span>
  <header><button class="brand" @click="go('home')"><span><v-icon name="heart" fill="currentColor"/></span><b>Only Us</b><small>我们的恋爱空间</small></button><nav><button v-for="n in nav" :key="n[0]" :class="{active:tab===n[0]}" @click="go(n[0])"><v-icon :name="n[1]"/>{{n[2]}}</button></nav><div class="tools"><button title="背景音乐" @click="music=!music"><v-icon :name="music?'music-2':'volume-x'"/></button><button title="爱心雨" @click="rain"><v-icon name="sparkles"/></button><button class="hamb" @click="menu=!menu"><v-icon name="menu"/></button></div></header>
@@ -33,4 +320,5 @@ new Vue({el:'#app',data:{ready:false,state:defaults,tab:'home',modal:null,music:
   <section class="page" v-if="tab==='story'"><div class="page-head"><div><h2>我们的故事</h2><p>从相遇到未来，每一章都由我们共同写下。</p></div><button class="primary" @click="modal='story'"><v-icon name="plus"/>记录故事</button></div><love-timeline :items="state.stories"/><div class="backup"><b>数据备份</b><span>照片和记录保存在当前设备，建议定期导出。</span><button @click="exportData"><v-icon name="download"/>导出</button><label><v-icon name="upload"/>导入<input hidden type="file" accept="application/json" @change="importData"></label></div></section>
  </main><footer><v-icon name="heart" fill="currentColor"/> Only Us · 愿每一天都值得纪念</footer>
  <div class="overlay" v-if="modal" @mousedown.self="modal=null"><div class="modal"><button class="close" @click="modal=null"><v-icon name="x"/></button><h3>{{modal==='day'?'添加纪念日':'记录故事'}}</h3><form @submit.prevent="saveModal"><input required name="title" placeholder="标题"><input required name="date" type="date"><textarea v-if="modal==='story'" required name="text" placeholder="那天发生了什么…"/><button class="primary">保存</button></form></div></div>
-</div><div class="loading" v-else><v-icon name="heart" fill="currentColor"/>正在打开我们的故事…</div>`});
+</div><div class="loading" v-else><v-icon name="heart" fill="currentColor"/>正在打开我们的故事…</div>`,
+});

@@ -9,5 +9,7 @@
     "vue": "2.7.16",
     "lucide": "0.468.0"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "prettier": "^2.8.8"
+  }
 }
