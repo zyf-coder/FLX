@@ -2,8 +2,7 @@ import Vue from "vue/dist/vue.esm.js";
 import { icons } from "lucide";
 import "./style.css";
 
-const PHOTO =
-  "https://images.unsplash.com/photo-1522673607200-164d1b6ce486?auto=format&fit=crop&w=1400&q=85";
+const PHOTO = `${import.meta.env.BASE_URL}temple-couple.jpg`;
 const defaults = {
   profile: {
     a: "小张同学",
@@ -32,15 +31,15 @@ const defaults = {
   stories: [
     {
       id: 1,
-      date: "2023.05.20",
-      title: "故事开始的那天",
-      text: "晚风刚好，牵手也刚好。",
+      date: "2025.10.18",
+      title: "相遇",
+      text: "2025年10月18日，我们第一次相遇。",
     },
     {
       id: 2,
-      date: "2023.10.02",
-      title: "第一次一起旅行",
-      text: "走过陌生的街，也更熟悉了彼此。",
+      date: "2025.10.26",
+      title: "表白",
+      text: "2025年10月26日，我们正式走到了一起。",
     },
   ],
 };
@@ -68,8 +67,8 @@ const storage = {
     }),
 };
 defaults.profile = {
-  a: "徐老师",
-  b: "小张同学",
+  a: "小张同学",
+  b: "徐老师",
   since: "2025-10-26",
   quote: "世界很大，刚好我们遇见了。",
 };
@@ -215,7 +214,13 @@ new Vue({
     },
   },
   async mounted() {
-    this.state = await storage.get();
+    const savedState = await storage.get();
+    this.state = JSON.parse(
+      JSON.stringify(savedState)
+        .replaceAll("小满", "小张同学")
+        .replaceAll("阿屿", "徐老师"),
+    );
+    this.state.stories = JSON.parse(JSON.stringify(defaults.stories));
     this.ready = true;
     if ("serviceWorker" in navigator)
       navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`);
@@ -308,7 +313,7 @@ new Vue({
  <div class="mobile-menu" v-if="menu"><button v-for="n in nav" :key="n[0]" @click="go(n[0])"><v-icon :name="n[1]"/>{{n[2]}}</button></div>
  <main>
   <template v-if="tab==='home'">
-   <section class="hero"><img :src="'${PHOTO}'"><div class="shade"/><div class="hero-copy"><span class="eyebrow"><span/> OUR LOVE STORY <span/></span><h1>徐老师 <v-icon name="heart" fill="currentColor"/> 小张同学</h1><p>{{state.profile.quote}}</p><div class="counter"><div><strong>{{Math.max(0,Math.floor((Date.now()-new Date('2025-10-26').getTime())/86400000))}}</strong><span>相爱的日子</span></div><i/><div><strong>2025年10月26日</strong><span>故事开始于</span></div></div></div><button class="float-heart" @click="rain"><v-icon name="heart" fill="currentColor"/></button></section>
+   <section class="hero"><img :src="'${PHOTO}'"><div class="shade"/><div class="hero-copy"><span class="eyebrow"><span/> OUR LOVE STORY <span/></span><h1>小张同学 <v-icon name="heart" fill="currentColor"/> 徐老师</h1><p>{{state.profile.quote}}</p><div class="counter"><div><strong>{{Math.max(0,Math.floor((Date.now()-new Date('2025-10-26').getTime())/86400000))}}</strong><span>相爱的日子</span></div><i/><div><strong>2025年10月26日</strong><span>故事开始于</span></div></div></div><button class="float-heart" @click="rain"><v-icon name="heart" fill="currentColor"/></button></section>
    <section class="quick"><article @click="go('album')"><div class="qicon pink"><v-icon name="images"/></div><div><b>恋爱相册</b><span>{{state.photos.length}} 张珍贵回忆</span></div><v-icon name="chevron-right"/></article><article @click="go('list')"><div class="qicon purple"><v-icon name="square-check-big"/></div><div><b>恋爱清单</b><span>{{doneCount}}/{{state.todos.length}} 已完成</span></div><v-icon name="chevron-right"/></article><article @click="go('days')"><div class="qicon amber"><v-icon name="calendar-heart"/></div><div><b>下个纪念日</b><span>{{state.days[0] ? state.days[0].title : '添加纪念日'}}</span></div><strong>{{state.days[0] ? Math.max(0,until(state.days[0].date)) : '+'}}<small>天</small></strong></article></section>
    <section class="home-grid"><div class="panel"><div class="title"><span><v-icon name="clock-3"/></span><div><b>爱情时间线</b><small>每个瞬间，都值得被记住</small></div><button @click="go('story')">查看全部 <v-icon name="chevron-right"/></button></div><love-timeline :items="state.stories.slice(-3)"/></div><div class="panel"><div class="title"><span><v-icon name="message-circle"/></span><div><b>悄悄话</b><small>只给你看的甜蜜留言</small></div><button @click="go('notes')">查看全部 <v-icon name="chevron-right"/></button></div><love-note v-for="n in state.notes.slice(0,2)" :key="n.id" :note="n"/></div></section>
    <section class="surprise"><v-icon name="gift"/><div><b>今日份的小惊喜</b><p>点击开启属于你们的浪漫时刻</p></div><button @click="rain">开启惊喜 <v-icon name="sparkles"/></button></section>
