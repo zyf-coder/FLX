@@ -223,6 +223,7 @@ new Vue({
     );
     this.state.stories = JSON.parse(JSON.stringify(defaults.stories));
     this.ready = true;
+    this.$nextTick(() => this.toggleMusic());
     if ("serviceWorker" in navigator)
       navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`);
   },
@@ -323,7 +324,7 @@ new Vue({
   template: `
 <div class="app" v-if="ready">
  <span v-for="h in hearts" :key="h.id" class="rain" :style="{left:h.left+'%',animationDelay:h.delay+'s',fontSize:h.size+'px'}">♥</span>
- <header><button class="brand" @click="go('home')"><span><v-icon name="heart" fill="currentColor"/></span><b>Only Us</b><small>我们的恋爱空间</small></button><nav><button v-for="n in nav" :key="n[0]" :class="{active:tab===n[0]}" @click="go(n[0])"><v-icon :name="n[1]"/>{{n[2]}}</button></nav><div class="tools"><span class="music-label" v-if="music"><i></i>多幸运 · 韩安旭</span><span class="music-hearts" v-if="music" aria-hidden="true"><i v-for="n in 6" :key="n" :style="{'--heart-index':n}">♥</i></span><button :title="music?'暂停《多幸运》':'播放《多幸运》'" @click="toggleMusic"><v-icon :name="music?'music-2':'volume-x'"/></button><button title="爱心雨" @click="rain"><v-icon name="sparkles"/></button><button class="hamb" @click="menu=!menu"><v-icon name="menu"/></button></div></header><audio ref="bgm" :src="'${MUSIC_PREVIEW}'" preload="none" loop @pause="music=false" @play="music=true"></audio>
+ <header><button class="brand" @click="go('home')"><span><v-icon name="heart" fill="currentColor"/></span><b>Only Us</b><small>我们的恋爱空间</small></button><nav><button v-for="n in nav" :key="n[0]" :class="{active:tab===n[0]}" @click="go(n[0])"><v-icon :name="n[1]"/>{{n[2]}}</button></nav><div class="tools"><span class="music-label" v-if="music"><i></i>多幸运 · 韩安旭</span><span class="music-hearts" v-if="music" aria-hidden="true"><i v-for="n in 6" :key="n" :style="{'--heart-index':n}">♥</i></span><button :title="music?'暂停《多幸运》':'播放《多幸运》'" @click="toggleMusic"><v-icon :name="music?'music-2':'volume-x'"/></button><button title="爱心雨" @click="rain"><v-icon name="sparkles"/></button><button class="hamb" @click="menu=!menu"><v-icon name="menu"/></button></div></header><audio ref="bgm" :src="'${MUSIC_PREVIEW}'" preload="auto" autoplay loop @pause="music=false" @play="music=true"></audio>
  <div class="mobile-menu" v-if="menu"><button v-for="n in nav" :key="n[0]" @click="go(n[0])"><v-icon :name="n[1]"/>{{n[2]}}</button></div>
  <main>
   <template v-if="tab==='home'">

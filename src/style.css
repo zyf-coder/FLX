@@ -13,3 +13,33 @@
 .tools{position:relative}.music-hearts{position:absolute;left:50%;top:38px;width:70px;height:1px;pointer-events:none;z-index:40}.music-hearts i{position:absolute;left:calc(var(--heart-index) * 9px);top:0;color:#ed6c99;font-style:normal;font-size:12px;animation:music-heart-float 2.4s ease-out infinite;animation-delay:calc(var(--heart-index) * -.34s);opacity:0}@keyframes music-heart-float{0%{transform:translate(0,0) scale(.65);opacity:0}18%{opacity:.9}100%{transform:translate(calc((var(--heart-index) - 3) * 5px),-58px) rotate(18deg) scale(1.15);opacity:0}}
 @media(max-width:800px){.hero>img{object-position:center 76%}.shade{background:linear-gradient(0deg,rgba(30,22,27,.78) 0,rgba(30,22,27,.18) 58%,rgba(30,22,27,.04) 100%)}}
 @media(max-width:800px){.music-label{display:none}}
+
+/* Native phone layout: reserve the upper hero for the photo and the lower area for copy. */
+@media(max-width:800px){
+  body{padding-bottom:env(safe-area-inset-bottom)}
+  header{height:calc(64px + env(safe-area-inset-top));padding-top:env(safe-area-inset-top)}
+  .mobile-menu{top:calc(64px + env(safe-area-inset-top))}
+  main{padding-bottom:calc(85px + env(safe-area-inset-bottom))}
+  .hero{height:690px;background:#3b3035;margin-top:12px;overflow:hidden}
+  .hero>img{position:absolute;inset:0 0 auto;width:100%;height:72%;object-fit:cover;object-position:center 72%}
+  .hero .shade{background:linear-gradient(0deg,#3b3035 0,#3b3035 27%,rgba(45,35,40,.2) 51%,rgba(30,22,27,.02) 100%)}
+  .hero-copy{left:22px;right:22px;bottom:24px;top:auto;transform:none}
+  .hero h1{font-size:32px;line-height:1.25;margin:14px 0 5px;white-space:nowrap}
+  .hero h1 svg{width:26px;height:26px}
+  .hero-copy>p{font-size:14px;margin:6px 0}
+  .counter{margin-top:20px;gap:14px;justify-content:flex-start}
+  .counter div{min-width:0;max-width:none!important}
+  .counter div:first-child{width:92px;flex:none}
+  .counter div:last-child{flex:1}
+  .counter strong{font-size:21px;line-height:1.2;white-space:nowrap}
+  .counter span{margin-top:4px}
+  .counter i{height:42px}
+  .quick{gap:12px}
+  .quick article{min-height:84px;height:auto}
+  footer{padding-bottom:calc(25px + env(safe-area-inset-bottom))}
+}
+@media(max-width:360px){
+  .hero{height:650px}
+  .hero h1{font-size:28px}
+  .counter strong{font-size:18px}
+}
