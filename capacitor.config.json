@@ -1,0 +1,8 @@
+{
+  "appId": "com.onlyus.flx",
+  "appName": "Only Us",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": false
+  }
+}
