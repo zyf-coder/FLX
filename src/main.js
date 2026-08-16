@@ -16,7 +16,7 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const COUPLE_ID = import.meta.env.VITE_COUPLE_ID;
 const UPDATE_URL = "https://zyf-coder.github.io/FLX/update.json";
-const WEB_VERSION = "1.1.3";
+const WEB_VERSION = "20260816.1";
 const APP_PASSCODES = {
   a: import.meta.env.VITE_APP_PASSCODE_A || "zhangyafei",
   b: import.meta.env.VITE_APP_PASSCODE_B || "xudan",
