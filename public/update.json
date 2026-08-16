@@ -1,6 +1,6 @@
 {
-  "version": "20260816.1",
-  "versionCode": 6,
+  "version": "20260816.2",
+  "versionCode": 7,
   "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android.apk",
-  "notes": "修复安卓更新后再次打开页面空白的问题；调整更新弹窗左右边距和小屏布局；修复右上角关闭按钮与标签重叠。"
+  "notes": "在我的页面增加退出登录功能；将编辑资料入口移入设置列表；重新设计资料编辑区域。"
 }
