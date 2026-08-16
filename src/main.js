@@ -3,7 +3,13 @@ import { icons } from "lucide";
 import "./style.css";
 
 const PHOTO = `${import.meta.env.BASE_URL}temple-couple.jpg`;
-const MUSIC_PREVIEW = `${import.meta.env.BASE_URL}audio/duo-xingyun-preview.m4a`;
+const MUSIC_PREVIEW = `${
+  import.meta.env.BASE_URL
+}audio/duo-xingyun-preview.m4a`;
+const LOCAL_BACKUP_KEY = "only-us-backup";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const COUPLE_ID = import.meta.env.VITE_COUPLE_ID;
 const defaults = {
   profile: {
     a: "小张同学",
@@ -44,28 +50,121 @@ const defaults = {
     },
   ],
 };
-const storage = {
+const clone = (value) => JSON.parse(JSON.stringify(value));
+const localBackup = {
+  get() {
+    try {
+      return JSON.parse(localStorage.getItem(LOCAL_BACKUP_KEY));
+    } catch {
+      return null;
+    }
+  },
+  set(value) {
+    try {
+      localStorage.setItem(LOCAL_BACKUP_KEY, JSON.stringify(value));
+    } catch (error) {
+      console.warn("Local backup failed", error);
+    }
+  },
+};
+const cloud = {
+  enabled: Boolean(SUPABASE_URL && SUPABASE_KEY && COUPLE_ID),
+  headers: {
+    apikey: SUPABASE_KEY,
+    Authorization: `Bearer ${SUPABASE_KEY}`,
+    "Content-Type": "application/json",
+    "x-couple-id": COUPLE_ID,
+  },
+  async get() {
+    if (!this.enabled) return null;
+    const response = await fetch(
+      `${SUPABASE_URL}/rest/v1/couple_states?couple_id=eq.${encodeURIComponent(
+        COUPLE_ID
+      )}&select=state`,
+      { headers: this.headers }
+    );
+    if (!response.ok) throw new Error(`Cloud read failed: ${response.status}`);
+    const rows = await response.json();
+    return rows[0]?.state || null;
+  },
+  async set(value) {
+    if (!this.enabled) return;
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/couple_states`, {
+      method: "POST",
+      headers: { ...this.headers, Prefer: "resolution=merge-duplicates" },
+      body: JSON.stringify({
+        couple_id: COUPLE_ID,
+        state: value,
+        updated_at: new Date().toISOString(),
+      }),
+    });
+    if (!response.ok) throw new Error(`Cloud write failed: ${response.status}`);
+  },
+};
+const indexedDb = {
   get: () =>
-    new Promise((ok) => {
-      const r = indexedDB.open("only-us", 1);
-      r.onupgradeneeded = () => r.result.createObjectStore("data");
-      r.onsuccess = () => {
-        const q = r.result.transaction("data").objectStore("data").get("state");
-        q.onsuccess = () => ok(q.result || defaults);
-        q.onerror = () => ok(defaults);
+    new Promise((resolve) => {
+      const request = indexedDB.open("only-us", 1);
+      request.onupgradeneeded = () => request.result.createObjectStore("data");
+      request.onerror = () => resolve(null);
+      request.onsuccess = () => {
+        const query = request.result
+          .transaction("data")
+          .objectStore("data")
+          .get("state");
+        query.onsuccess = () => resolve(query.result || null);
+        query.onerror = () => resolve(null);
       };
     }),
-  set: (v) =>
-    new Promise((ok) => {
-      const r = indexedDB.open("only-us", 1);
-      r.onsuccess = () => {
-        const q = r.result
+  set: (value) =>
+    new Promise((resolve) => {
+      const request = indexedDB.open("only-us", 1);
+      request.onerror = () => resolve();
+      request.onsuccess = () => {
+        const query = request.result
           .transaction("data", "readwrite")
           .objectStore("data")
-          .put(v, "state");
-        q.onsuccess = ok;
+          .put(value, "state");
+        query.onsuccess = resolve;
+        query.onerror = resolve;
       };
     }),
+};
+const storage = {
+  async get() {
+    const local = (await indexedDb.get()) || localBackup.get();
+    try {
+      const remote = await cloud.get();
+      const value = remote || local || defaults;
+      localBackup.set(value);
+      await indexedDb.set(value);
+      return value;
+    } catch (error) {
+      console.warn("Cloud restore failed; using local backup", error);
+      return local || defaults;
+    }
+  },
+  async set(value) {
+    const snapshot = clone(value);
+    localBackup.set(snapshot);
+    await indexedDb.set(snapshot);
+    cloud
+      .set(snapshot)
+      .catch((error) =>
+        console.warn("Cloud sync failed; local backup is safe", error)
+      );
+  },
+};
+const formatRelativeTime = (value) => {
+  const timestamp =
+    typeof value === "number" ? value : new Date(value).getTime();
+  if (!Number.isFinite(timestamp)) return value || "";
+  const diff = Math.max(0, Date.now() - timestamp);
+  if (diff < 60000) return "刚刚";
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`;
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}小时前`;
+  if (diff < 172800000) return "昨天";
+  return new Date(timestamp).toLocaleDateString("zh-CN");
 };
 defaults.profile = {
   a: "小张同学",
@@ -97,7 +196,20 @@ Vue.component("love-timeline", {
 });
 Vue.component("love-note", {
   props: ["note"],
-  template: `<article class="note"><div>{{note.author[0]}}</div><p><b>{{note.author}}</b><span>{{note.text}}</span><small>{{note.time}}</small></p></article>`,
+  data: () => ({ now: Date.now(), clock: null }),
+  mounted() {
+    this.clock = setInterval(() => (this.now = Date.now()), 30000);
+  },
+  beforeDestroy() {
+    clearInterval(this.clock);
+  },
+  methods: {
+    displayTime(value) {
+      this.now;
+      return formatRelativeTime(value);
+    },
+  },
+  template: `<article class="note"><div>{{note.author[0]}}</div><p><b>{{note.author}}</b><span>{{note.text}}</span><small>{{displayTime(note.time)}}</small></p></article>`,
 });
 
 Vue.component("anniversary-page", {
@@ -219,8 +331,12 @@ new Vue({
     this.state = JSON.parse(
       JSON.stringify(savedState)
         .replaceAll("小满", "小张同学")
-        .replaceAll("阿屿", "徐老师"),
+        .replaceAll("阿屿", "徐老师")
     );
+    this.state.notes = this.state.notes.map((note) => ({
+      ...note,
+      time: note.time === "刚刚" ? Date.now() : note.time,
+    }));
     this.state.stories = JSON.parse(JSON.stringify(defaults.stories));
     this.ready = true;
     this.$nextTick(() => this.toggleMusic());
@@ -270,7 +386,7 @@ new Vue({
           id: Date.now(),
           author: this.state.profile.a,
           text,
-          time: "刚刚",
+          time: Date.now(),
         });
       this.$refs.note.value = "";
     },
@@ -283,6 +399,7 @@ new Vue({
             src: r.result,
             title: f.name.replace(/\.[^.]+$/, ""),
             date: new Date().toISOString().slice(0, 10),
+            uploadedAt: Date.now(),
           });
         r.readAsDataURL(f);
       });
