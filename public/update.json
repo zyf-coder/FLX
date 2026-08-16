@@ -1,0 +1,6 @@
+{
+  "version": "1.1.0",
+  "versionCode": 2,
+  "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android.apk",
+  "notes": "增加新版本提醒，优化手机返回手势和退出逻辑。"
+}

@@ -1,5 +1,8 @@
 import Vue from "vue/dist/vue.esm.js";
 import { icons } from "lucide";
+import { Capacitor } from "@capacitor/core";
+import { App as NativeApp } from "@capacitor/app";
+import { Browser } from "@capacitor/browser";
 import "./style.css";
 
 const PHOTO = `${import.meta.env.BASE_URL}temple-couple.jpg`;
@@ -10,6 +13,16 @@ const LOCAL_BACKUP_KEY = "only-us-backup";
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const COUPLE_ID = import.meta.env.VITE_COUPLE_ID;
+const UPDATE_URL = "https://zyf-coder.github.io/FLX/update.json";
+const isNewerVersion = (latest, current) => {
+  const left = String(latest).split(".").map(Number);
+  const right = String(current).split(".").map(Number);
+  for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
+    const difference = (left[index] || 0) - (right[index] || 0);
+    if (difference) return difference > 0;
+  }
+  return false;
+};
 const defaults = {
   profile: {
     a: "小张同学",
@@ -289,6 +302,8 @@ new Vue({
     music: false,
     hearts: [],
     menu: false,
+    exitHint: false,
+    lastBackAt: 0,
     nav: [
       ["home", "house", "主页"],
       ["album", "images", "相册"],
@@ -340,10 +355,60 @@ new Vue({
     this.state.stories = JSON.parse(JSON.stringify(defaults.stories));
     this.ready = true;
     this.$nextTick(() => this.toggleMusic());
+    if (Capacitor.isNativePlatform()) {
+      this.setupNativeBack();
+      this.checkForUpdate();
+    }
     if ("serviceWorker" in navigator)
       navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`);
   },
   methods: {
+    setupNativeBack() {
+      NativeApp.addListener("backButton", () => {
+        if (this.modal) {
+          this.modal = null;
+          return;
+        }
+        if (this.menu) {
+          this.menu = false;
+          return;
+        }
+        if (this.tab !== "home") {
+          this.go("home");
+          return;
+        }
+        const now = Date.now();
+        if (now - this.lastBackAt < 2000) {
+          NativeApp.exitApp();
+          return;
+        }
+        this.lastBackAt = now;
+        this.exitHint = true;
+        setTimeout(() => (this.exitHint = false), 2000);
+      });
+    },
+    async checkForUpdate() {
+      try {
+        const [appInfo, response] = await Promise.all([
+          NativeApp.getInfo(),
+          fetch(`${UPDATE_URL}?t=${Date.now()}`, { cache: "no-store" }),
+        ]);
+        if (!response.ok) return;
+        const update = await response.json();
+        if (
+          isNewerVersion(update.version, appInfo.version) &&
+          confirm(
+            `发现新版本 ${update.version}\n\n${
+              update.notes || "修复问题并优化使用体验"
+            }\n\n是否立即更新？`
+          )
+        ) {
+          await Browser.open({ url: update.androidUrl });
+        }
+      } catch (error) {
+        console.warn("检查更新失败", error);
+      }
+    },
     async toggleMusic() {
       const player = this.$refs.bgm;
       if (this.music) {
@@ -440,6 +505,7 @@ new Vue({
   },
   template: `
 <div class="app" v-if="ready">
+ <div class="app-toast" v-if="exitHint">再返回一次退出 APP</div>
  <span v-for="h in hearts" :key="h.id" class="rain" :style="{left:h.left+'%',animationDelay:h.delay+'s',fontSize:h.size+'px'}">♥</span>
  <header><button class="brand" @click="go('home')"><span><v-icon name="heart" fill="currentColor"/></span><b>Only Us</b><small>我们的恋爱空间</small></button><nav><button v-for="n in nav" :key="n[0]" :class="{active:tab===n[0]}" @click="go(n[0])"><v-icon :name="n[1]"/>{{n[2]}}</button></nav><div class="tools"><span class="music-label" v-if="music"><i></i>多幸运 · 韩安旭</span><span class="music-hearts" v-if="music" aria-hidden="true"><i v-for="n in 6" :key="n" :style="{'--heart-index':n}">♥</i></span><button :title="music?'暂停《多幸运》':'播放《多幸运》'" @click="toggleMusic"><v-icon :name="music?'music-2':'volume-x'"/></button><button title="爱心雨" @click="rain"><v-icon name="sparkles"/></button><button class="hamb" @click="menu=!menu"><v-icon name="menu"/></button></div></header><audio ref="bgm" :src="'${MUSIC_PREVIEW}'" preload="auto" autoplay loop @pause="music=false" @play="music=true"></audio>
  <div class="mobile-menu" v-if="menu"><button v-for="n in nav" :key="n[0]" @click="go(n[0])"><v-icon :name="n[1]"/>{{n[2]}}</button></div>
