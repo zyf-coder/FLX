@@ -1,6 +1,6 @@
 {
-  "version": "1.1.1",
-  "versionCode": 3,
+  "version": "1.1.2",
+  "versionCode": 4,
   "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android.apk",
-  "notes": "启用云端实时存储，完善纪念日提醒、清单样式、删除确认和音乐静音逻辑。"
+  "notes": "新增手机底部导航和快捷添加；新增未来信与我的页面；支持双人资料和头像更换；优化版本更新弹窗，并在关于 US 中持续提示待更新版本。"
 }

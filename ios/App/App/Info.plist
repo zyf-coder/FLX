@@ -45,5 +45,9 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSCalendarsUsageDescription</key>
+	<string>用于把你们的重要纪念日添加到系统日历。</string>
+	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
+	<string>用于把你们的重要纪念日添加到系统日历。</string>
 </dict>
 </plist>
