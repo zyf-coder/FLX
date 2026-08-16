@@ -34,6 +34,10 @@ for each row execute function public.backup_couple_state();
 alter table public.couple_states enable row level security;
 alter table public.couple_state_backups enable row level security;
 
+drop policy if exists "anonymous couple state read" on public.couple_states;
+drop policy if exists "anonymous couple state insert" on public.couple_states;
+drop policy if exists "anonymous couple state update" on public.couple_states;
+
 create policy "anonymous couple state read" on public.couple_states
 for select to anon
 using (
@@ -53,4 +57,32 @@ with check (
   couple_id = (current_setting('request.headers', true)::json ->> 'x-couple-id')
 );
 
-alter publication supabase_realtime add table public.couple_states;
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'couple_states'
+  ) then
+    alter publication supabase_realtime add table public.couple_states;
+  end if;
+end;
+$$;
+
+insert into storage.buckets (id, name, public)
+values ('couple-photos', 'couple-photos', true)
+on conflict (id) do update set public = true;
+
+drop policy if exists "couple photo upload" on storage.objects;
+drop policy if exists "couple photo delete" on storage.objects;
+create policy "couple photo upload" on storage.objects
+for insert to anon with check (
+  bucket_id = 'couple-photos'
+  and (storage.foldername(name))[1] = (current_setting('request.headers', true)::json ->> 'x-couple-id')
+);
+create policy "couple photo delete" on storage.objects
+for delete to anon using (
+  bucket_id = 'couple-photos'
+  and (storage.foldername(name))[1] = (current_setting('request.headers', true)::json ->> 'x-couple-id')
+);
