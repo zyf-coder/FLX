@@ -1,6 +1,6 @@
 {
-  "version": "20260816.3",
-  "versionCode": 8,
+  "version": "20260816.4",
+  "versionCode": 9,
   "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android.apk",
-  "notes": "网页和 APP 登录页增加记住密码功能；按身份分别保存和自动填入密码；保持手机键盘默认输入行为。"
+  "notes": "登录密码继续使用隐藏显示；增加英文小写密码提示；保留网页和 APP 记住密码功能。"
 }
