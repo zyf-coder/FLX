@@ -14,6 +14,16 @@
 @media(max-width:390px){.big-duration strong{font-size:28px}.big-duration span{font-size:12px}.event-duration strong{font-size:24px}.date-time-grid{grid-template-columns:1fr}}
 
 /* Keep the couple visible while preserving clear space for the hero copy. */
+
+/* Mobile update dialog: respect safe areas and keep the corner controls separate. */
+.update-overlay{padding:max(16px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
+.update-dialog{width:min(430px,100%);max-height:calc(100dvh - 32px);overflow-x:hidden;overflow-y:auto}
+.update-art span{left:20px;right:auto}
+.update-dialog>.close{right:16px;top:14px;width:36px;height:36px;padding:0;border:1px solid #ffffff59;background:#4c34502e}
+.update-dialog>.close svg{width:19px;height:19px}
+.update-dialog>div:last-child{display:grid;grid-template-columns:1fr 1.15fr;gap:10px}
+.update-dialog>div:last-child button{min-width:0;justify-content:center}
+@media(max-width:360px){.update-dialog{padding-left:18px;padding-right:18px}.update-art{margin-left:-18px;margin-right:-18px}.update-dialog h3{font-size:21px}.update-dialog>div:last-child{grid-template-columns:1fr}.update-dialog>div:last-child button{min-height:44px}}
 .hero>img{object-position:center 68%}.shade{background:linear-gradient(90deg,rgba(30,24,28,.72) 0,rgba(30,24,28,.36) 42%,rgba(30,24,28,.06) 76%)}
 .music-label{display:flex;align-items:center;gap:7px;font-size:11px;color:#866773;white-space:nowrap;margin-right:5px}.music-label i{width:6px;height:6px;border-radius:50%;background:var(--pink);box-shadow:0 0 0 4px #f9dce7;animation:music-pulse 1.2s ease-in-out infinite}@keyframes music-pulse{50%{transform:scale(1.45);opacity:.65}}
 .tools{position:relative}.music-hearts{position:absolute;left:50%;top:38px;width:70px;height:1px;pointer-events:none;z-index:40}.music-hearts i{position:absolute;left:calc(var(--heart-index) * 9px);top:0;color:#ed6c99;font-style:normal;font-size:12px;animation:music-heart-float 2.4s ease-out infinite;animation-delay:calc(var(--heart-index) * -.34s);opacity:0}@keyframes music-heart-float{0%{transform:translate(0,0) scale(.65);opacity:0}18%{opacity:.9}100%{transform:translate(calc((var(--heart-index) - 3) * 5px),-58px) rotate(18deg) scale(1.15);opacity:0}}
