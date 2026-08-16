@@ -24,6 +24,17 @@
 .update-dialog>div:last-child{display:grid;grid-template-columns:1fr 1.15fr;gap:10px}
 .update-dialog>div:last-child button{min-width:0;justify-content:center}
 @media(max-width:360px){.update-dialog{padding-left:18px;padding-right:18px}.update-art{margin-left:-18px;margin-right:-18px}.update-dialog h3{font-size:21px}.update-dialog>div:last-child{grid-template-columns:1fr}.update-dialog>div:last-child button{min-height:44px}}
+
+.settings-list .logout-row{margin-top:12px;border-top:1px solid #f1e7eb;color:#bd496d}
+.settings-list .logout-row>i{background:#fff1f3;color:#d34e70}
+.settings-list .logout-row small{color:#b995a1}
+.profile-edit-form{margin-top:14px;border-top:3px solid #ea729a;box-shadow:0 10px 30px #5c2e4010}
+.profile-edit-heading{display:flex;align-items:center;gap:12px;padding-bottom:14px;border-bottom:1px solid #f1e5e9}
+.profile-edit-heading>span{width:42px;height:42px;border-radius:50%;background:#fff0f5;color:var(--pink);display:grid;place-items:center;flex:none}
+.profile-edit-heading>span svg{width:19px}
+.profile-edit-heading h3{margin:0;font-size:17px}
+.profile-edit-heading p{margin:4px 0 0;color:#a18b94;font-size:11px}
+@media(max-width:800px){.profile-edit-form{margin:14px 12px 0;border-radius:6px}.settings-list .logout-row{margin-top:10px}}
 .hero>img{object-position:center 68%}.shade{background:linear-gradient(90deg,rgba(30,24,28,.72) 0,rgba(30,24,28,.36) 42%,rgba(30,24,28,.06) 76%)}
 .music-label{display:flex;align-items:center;gap:7px;font-size:11px;color:#866773;white-space:nowrap;margin-right:5px}.music-label i{width:6px;height:6px;border-radius:50%;background:var(--pink);box-shadow:0 0 0 4px #f9dce7;animation:music-pulse 1.2s ease-in-out infinite}@keyframes music-pulse{50%{transform:scale(1.45);opacity:.65}}
 .tools{position:relative}.music-hearts{position:absolute;left:50%;top:38px;width:70px;height:1px;pointer-events:none;z-index:40}.music-hearts i{position:absolute;left:calc(var(--heart-index) * 9px);top:0;color:#ed6c99;font-style:normal;font-size:12px;animation:music-heart-float 2.4s ease-out infinite;animation-delay:calc(var(--heart-index) * -.34s);opacity:0}@keyframes music-heart-float{0%{transform:translate(0,0) scale(.65);opacity:0}18%{opacity:.9}100%{transform:translate(calc((var(--heart-index) - 3) * 5px),-58px) rotate(18deg) scale(1.15);opacity:0}}
