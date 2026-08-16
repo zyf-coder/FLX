@@ -4,3 +4,4 @@ dist/
 .deep-copilot/
 release/
 .dev-server.log
+.env.local

@@ -52,3 +52,5 @@ using (
 with check (
   couple_id = (current_setting('request.headers', true)::json ->> 'x-couple-id')
 );
+
+alter publication supabase_realtime add table public.couple_states;
