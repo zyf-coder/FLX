@@ -16,7 +16,11 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const COUPLE_ID = import.meta.env.VITE_COUPLE_ID;
 const UPDATE_URL = "https://zyf-coder.github.io/FLX/update.json";
-const WEB_VERSION = "1.1.2";
+const WEB_VERSION = "1.1.3";
+const APP_PASSCODES = {
+  a: import.meta.env.VITE_APP_PASSCODE_A || "zhangyafei",
+  b: import.meta.env.VITE_APP_PASSCODE_B || "xudan",
+};
 const isNewerVersion = (latest, current) => {
   const left = String(latest).split(".").map(Number);
   const right = String(current).split(".").map(Number);
@@ -333,6 +337,19 @@ new Vue({
     updateModal: false,
     quickAddOpen: false,
     appNotice: "",
+    profileEditing: false,
+    profileDraft: null,
+    authenticated: sessionStorage.getItem("only-us-auth") === "yes",
+    loginUser: "a",
+    loginError: "",
+    loginPhotoIndex: 0,
+    loginPhotoTimer: null,
+    timeHours: Array.from({ length: 24 }, (_, index) =>
+      String(index).padStart(2, "0")
+    ),
+    timeMinutes: Array.from({ length: 12 }, (_, index) =>
+      String(index * 5).padStart(2, "0")
+    ),
     nav: [
       ["home", "house", "主页"],
       ["album", "images", "相册"],
@@ -371,6 +388,15 @@ new Vue({
       return [...this.state.notes]
         .sort((a, b) => (Number(b.time) || 0) - (Number(a.time) || 0))
         .slice(0, 2);
+    },
+    loginPhotos() {
+      const photos = this.state.photos
+        .map((photo) => photo.src)
+        .filter(Boolean);
+      return photos.length ? photos : [PHOTO];
+    },
+    loginPhoto() {
+      return this.loginPhotos[this.loginPhotoIndex % this.loginPhotos.length];
     },
   },
   watch: {
@@ -420,7 +446,11 @@ new Vue({
     }
     this.state.stories = JSON.parse(JSON.stringify(defaults.stories));
     this.ready = true;
-    if (migratedPhotoPath) this.persistState(this.state);
+    this.loginPhotoTimer = setInterval(() => {
+      this.loginPhotoIndex =
+        (this.loginPhotoIndex + 1) % this.loginPhotos.length;
+    }, 6500);
+    if (migratedPhotoPath) this.persistState(this.state, true);
     this.lastCloudVersion = this.state._updatedAt || 0;
     if (cloud.enabled) {
       this.cloudSync = "云端数据已同步";
@@ -437,15 +467,41 @@ new Vue({
   },
   beforeDestroy() {
     clearInterval(this.cloudPoller);
+    clearInterval(this.loginPhotoTimer);
   },
   methods: {
-    async persistState(value) {
+    login() {
+      const passcode = this.$refs.loginPasscode.value;
+      if (passcode !== APP_PASSCODES[this.loginUser]) {
+        this.loginError = `${this.loginUser === "a" ? "小张同学" : "徐老师"}的密码不正确，请重新输入`;
+        this.$refs.loginPasscode.value = "";
+        return;
+      }
+      this.authenticated = true;
+      this.loginError = "";
+      sessionStorage.setItem("only-us-auth", "yes");
+      sessionStorage.setItem("only-us-user", this.loginUser);
+      this.showNotice("登录成功");
+    },
+    logout() {
+      sessionStorage.removeItem("only-us-auth");
+      sessionStorage.removeItem("only-us-user");
+      this.authenticated = false;
+      this.go("home");
+    },
+    async persistState(value, silent = false) {
       this.cloudSync = "正在保存到云端";
       const result = await storage.set(value);
       this.lastCloudVersion = result.updatedAt;
       this.cloudSync = result.saved
         ? "已实时保存到云端"
         : "网络异常，等待重新上传";
+      if (!silent) {
+        this.showNotice(
+          result.saved ? "已成功保存到云端" : "保存失败，请检查网络后重试"
+        );
+      }
+      return result;
     },
     async pullCloudState() {
       try {
@@ -583,10 +639,39 @@ new Vue({
       const reader = new FileReader();
       reader.onload = () => {
         this.$set(this.state.profile, key, reader.result);
-        this.showNotice("头像已保存到云端");
       };
       reader.readAsDataURL(file);
       event.target.value = "";
+    },
+    startProfileEdit() {
+      this.profileDraft = {
+        a: this.state.profile.a,
+        b: this.state.profile.b,
+        since: this.state.profile.since,
+        quote: this.state.profile.quote,
+      };
+      this.profileEditing = true;
+    },
+    cancelProfileEdit() {
+      this.profileEditing = false;
+      this.profileDraft = null;
+    },
+    saveProfile() {
+      if (
+        !this.profileDraft.a.trim() ||
+        !this.profileDraft.b.trim() ||
+        !this.profileDraft.since
+      ) {
+        this.showNotice("请完整填写昵称和恋爱日期");
+        return;
+      }
+      Object.assign(this.state.profile, {
+        a: this.profileDraft.a.trim(),
+        b: this.profileDraft.b.trim(),
+        since: this.profileDraft.since,
+        quote: this.profileDraft.quote.trim(),
+      });
+      this.cancelProfileEdit();
     },
     addLetter() {
       const text = this.$refs.letterText.value.trim();
@@ -745,7 +830,7 @@ new Vue({
           date: f.get("date"),
           icon: "💗",
           remindDays: Number(f.get("remindDays") || 1),
-          time: f.get("time") || "09:00",
+          time: `${f.get("hour") || "09"}:${f.get("minute") || "00"}`,
         };
         this.state.days.push(day);
         this.scheduleReminder(day).catch((error) =>
@@ -778,7 +863,8 @@ new Vue({
     },
   },
   template: `
-<div class="app" v-if="ready">
+<div class="login-screen" v-if="ready&&!authenticated"><transition name="login-fade"><img :key="loginPhoto" :src="loginPhoto"/></transition><div class="login-shade"/><section class="login-panel"><span class="login-mark"><v-icon name="heart" fill="currentColor"/></span><small>ONLY US</small><h1>欢迎回到我们的故事</h1><p>选择身份并输入专属密码</p><div class="login-users"><button type="button" :class="{active:loginUser==='a'}" @click="loginUser='a';loginError=''"><i><img v-if="state.profile.avatarA" :src="state.profile.avatarA"><span v-else>{{state.profile.a[0]}}</span></i>{{state.profile.a}}</button><button type="button" :class="{active:loginUser==='b'}" @click="loginUser='b';loginError=''"><i><img v-if="state.profile.avatarB" :src="state.profile.avatarB"><span v-else>{{state.profile.b[0]}}</span></i>{{state.profile.b}}</button></div><form @submit.prevent="login"><label><v-icon name="key-round"/><input ref="loginPasscode" required type="password" autocomplete="current-password" maxlength="32" placeholder="输入专属密码"></label><em v-if="loginError">{{loginError}}</em><button>进入 Only Us <v-icon name="arrow-right"/></button></form><footer>徐老师与小张同学 · 只属于我们的空间</footer></section></div>
+<div class="app" v-else-if="ready">
  <div class="app-toast" v-if="exitHint">再返回一次退出 APP</div>
  <div class="app-toast" v-if="appNotice">{{appNotice}}</div>
  <span v-for="h in hearts" :key="h.id" class="rain" :style="{left:h.left+'%',animationDelay:h.delay+'s',fontSize:h.size+'px'}">♥</span>
@@ -797,10 +883,10 @@ new Vue({
   <anniversary-page v-if="tab==='days'" :items="state.days" @add="modal='day'" @remove="removeAnniversary" @calendar="addToPhoneCalendar"/>
   <section class="page" v-if="tab==='notes'"><div class="page-head"><div><h2>悄悄话</h2><p>忙碌的日子里，也别忘了说爱你。</p></div></div><form class="noteform" @submit.prevent="addNote"><textarea ref="note" maxlength="120" placeholder="写一句只给 TA 看的话…"/><button><v-icon name="send"/>发送留言</button></form><love-note v-for="n in state.notes" :key="n.id" :note="n"/></section>
   <section class="page future-page" v-if="tab==='future'"><div class="page-head"><div><h2>未来的信</h2><p>把此刻想说的话，交给未来的某一天。</p></div></div><form class="letter-form" @submit.prevent="addLetter"><textarea ref="letterText" required maxlength="500" placeholder="写给未来的我们…"/><label><v-icon name="calendar-days"/><span>开启日期</span><input ref="letterDate" required type="date"></label><button class="primary"><v-icon name="lock-keyhole"/>封存这封信</button></form><div class="letters"><article v-for="letter in state.letters" :key="letter.id" :class="{locked:!letterReady(letter)}"><div><v-icon :name="letterReady(letter)?'mail-open':'lock-keyhole'"/></div><section><b>{{letterReady(letter)?'来自过去的一封信':'尚未到开启时间'}}</b><p v-if="letterReady(letter)">{{letter.text}}</p><p v-else>这封信将在 {{letter.openDate}} 开启</p><small>写于 {{new Date(letter.createdAt).toLocaleDateString('zh-CN')}}</small></section><button title="删除未来信" @click="confirmDelete('letters',letter.id,'这封未来信')"><v-icon name="trash-2"/></button></article><div class="empty-state" v-if="!state.letters.length"><v-icon name="mail"/><b>还没有未来信</b><span>写下第一封，留给未来的你们。</span></div></div></section>
-  <section class="page me-page" v-if="tab==='me'"><div class="me-cover"><span>ONLY US</span><h2>我们的空间</h2><p>徐老师与小张同学</p></div><div class="couple-profile"><article><label class="avatar-editor"><img v-if="state.profile.avatarA" :src="state.profile.avatarA"><span v-else>{{state.profile.a[0]}}</span><i><v-icon name="camera"/></i><input hidden type="file" accept="image/*" @change="changeAvatar('avatarA',$event)"></label><input v-model.lazy.trim="state.profile.a" maxlength="12" aria-label="小张同学昵称"></article><v-icon class="profile-heart" name="heart" fill="currentColor"/><article><label class="avatar-editor"><img v-if="state.profile.avatarB" :src="state.profile.avatarB"><span v-else>{{state.profile.b[0]}}</span><i><v-icon name="camera"/></i><input hidden type="file" accept="image/*" @change="changeAvatar('avatarB',$event)"></label><input v-model.lazy.trim="state.profile.b" maxlength="12" aria-label="徐老师昵称"></article></div><section class="profile-signature"><div><i><v-icon name="quote"/></i><span><b>我们的签名</b><small>会展示在首页照片上</small></span></div><textarea v-model.lazy.trim="state.profile.quote" maxlength="50" placeholder="写一句属于你们的话…"/></section><section class="settings-list"><label><i><v-icon name="calendar-heart"/></i><span><b>恋爱开始日期</b><small>用于首页恋爱计时</small></span><input type="date" v-model="state.profile.since"></label><button class="about-row" @click="updateInfo?updateModal=true:checkForUpdate(true)"><i><v-icon name="info"/></i><span><b>关于我们 <em v-if="updateInfo">有更新</em></b><small>当前版本 {{currentVersion}}{{updateInfo?' · 最新 '+updateInfo.version:''}}</small></span><v-icon name="chevron-right"/></button></section></section>
+  <section class="page me-page" v-if="tab==='me'"><div class="me-cover"><span>ONLY US</span><h2>我们的空间</h2><p>{{state.profile.a}} 与 {{state.profile.b}}</p><button v-if="!profileEditing" @click="startProfileEdit"><v-icon name="pencil"/>编辑资料</button></div><div class="couple-profile"><article><label class="avatar-editor"><img v-if="state.profile.avatarA" :src="state.profile.avatarA"><span v-else>{{state.profile.a[0]}}</span><i><v-icon name="camera"/></i><input hidden type="file" accept="image/*" @change="changeAvatar('avatarA',$event)"></label><b>{{state.profile.a}}</b></article><v-icon class="profile-heart" name="heart" fill="currentColor"/><article><label class="avatar-editor"><img v-if="state.profile.avatarB" :src="state.profile.avatarB"><span v-else>{{state.profile.b[0]}}</span><i><v-icon name="camera"/></i><input hidden type="file" accept="image/*" @change="changeAvatar('avatarB',$event)"></label><b>{{state.profile.b}}</b></article></div><template v-if="!profileEditing"><section class="profile-signature profile-value"><div><i><v-icon name="quote"/></i><span><b>我们的签名</b><small>会展示在首页照片上</small></span></div><p>{{state.profile.quote||'还没有设置签名'}}</p></section><section class="settings-list"><div class="setting-view"><i><v-icon name="calendar-heart"/></i><span><b>恋爱开始日期</b><small>{{startDate}}</small></span></div><button class="about-row" @click="updateInfo?updateModal=true:checkForUpdate(true)"><i><v-icon name="info"/></i><span><b>关于我们 <em v-if="updateInfo">有更新</em></b><small>当前版本 {{currentVersion}}{{updateInfo?' · 最新 '+updateInfo.version:''}}</small></span><v-icon name="chevron-right"/></button></section></template><form v-else class="profile-edit-form" @submit.prevent="saveProfile"><h3>编辑我们的资料</h3><div class="name-edit-grid"><label class="form-field"><span>昵称一</span><input required v-model="profileDraft.a" maxlength="12"></label><label class="form-field"><span>昵称二</span><input required v-model="profileDraft.b" maxlength="12"></label></div><label class="form-field"><span>恋爱开始日期</span><input required type="date" v-model="profileDraft.since"></label><label class="form-field"><span>我们的签名</span><textarea v-model="profileDraft.quote" maxlength="50" placeholder="写一句属于你们的话…"/></label><div><button type="button" @click="cancelProfileEdit">取消</button><button class="primary"><v-icon name="check"/>保存资料</button></div></form></section>
   <section class="page" v-if="tab==='story'"><div class="page-head"><div><h2>我们的故事</h2><p>从相遇到未来，每一章都由我们共同写下。</p></div><button class="primary" @click="modal='story'"><v-icon name="plus"/>记录故事</button></div><love-timeline :items="state.stories"/><div class="backup"><b>数据备份</b><span>{{cloudEnabled?cloudSync:'当前仅保存在本机，卸载 APP 前请先导出备份。'}}</span><button @click="exportData"><v-icon name="download"/>导出</button><label><v-icon name="upload"/>导入<input hidden type="file" accept="application/json" @change="importData"></label></div></section>
  </main><footer><v-icon name="heart" fill="currentColor"/> Only Us · 愿每一天都值得纪念</footer>
- <div class="overlay" v-if="modal" @mousedown.self="modal=null"><div class="modal" :class="{'day-modal':modal==='day'}"><button class="close" @click="modal=null"><v-icon name="x"/></button><small v-if="modal==='day'">ONLY US CALENDAR</small><h3>{{modal==='day'?'添加纪念日':'记录故事'}}</h3><form @submit.prevent="saveModal"><label class="form-field"><span>纪念日名称</span><input required name="title" placeholder="例如：第一次旅行"></label><div class="date-time-grid" v-if="modal==='day'"><label class="form-field"><span><v-icon name="calendar-days"/>日期</span><input required name="date" type="date"></label><label class="form-field"><span><v-icon name="clock-3"/>时间</span><input required name="time" type="time" value="09:00"></label></div><label class="form-field" v-else><span>日期</span><input required name="date" type="date"></label><label class="remind-field" v-if="modal==='day'"><span><v-icon name="bell-ring"/>提前提醒</span><select name="remindDays"><option value="0">当天提醒</option><option value="1" selected>提前1天</option><option value="3">提前3天</option><option value="7">提前7天</option><option value="30">提前30天</option></select></label><label class="calendar-toggle" v-if="modal==='day'"><span><i><v-icon name="calendar-plus"/></i><b>添加到手机日历</b><small>保存后打开系统日历确认</small></span><input type="checkbox" name="addCalendar" checked><i/></label><textarea v-if="modal==='story'" required name="text" placeholder="那天发生了什么…"/><button class="primary">{{modal==='day'?'保存并设置提醒':'保存'}}</button></form></div></div>
+ <div class="overlay" v-if="modal" @mousedown.self="modal=null"><div class="modal" :class="{'day-modal':modal==='day'}"><button class="close" @click="modal=null"><v-icon name="x"/></button><small v-if="modal==='day'">ONLY US CALENDAR</small><h3>{{modal==='day'?'添加纪念日':'记录故事'}}</h3><form @submit.prevent="saveModal"><label class="form-field"><span>纪念日名称</span><input required name="title" placeholder="例如：第一次旅行"></label><div class="date-time-grid" v-if="modal==='day'"><label class="form-field"><span><v-icon name="calendar-days"/>日期</span><input required name="date" type="date"></label><label class="form-field"><span><v-icon name="clock-3"/>时间</span><div class="time-select"><select name="hour" aria-label="小时"><option v-for="hour in timeHours" :key="hour" :value="hour" :selected="hour==='09'">{{hour}}</option></select><b>:</b><select name="minute" aria-label="分钟"><option v-for="minute in timeMinutes" :key="minute" :value="minute" :selected="minute==='00'">{{minute}}</option></select></div></label></div><label class="form-field" v-else><span>日期</span><input required name="date" type="date"></label><label class="remind-field" v-if="modal==='day'"><span><v-icon name="bell-ring"/>提前提醒</span><select name="remindDays"><option value="0">当天提醒</option><option value="1" selected>提前1天</option><option value="3">提前3天</option><option value="7">提前7天</option><option value="30">提前30天</option></select></label><label class="calendar-toggle" v-if="modal==='day'"><span><i><v-icon name="calendar-plus"/></i><b>添加到手机日历</b><small>保存后打开系统日历确认</small></span><input type="checkbox" name="addCalendar" checked><i/></label><textarea v-if="modal==='story'" required name="text" placeholder="那天发生了什么…"/><button class="primary">{{modal==='day'?'保存并设置提醒':'保存'}}</button></form></div></div>
  <div class="overlay update-overlay" v-if="updateModal&&updateInfo"><div class="update-dialog"><div class="update-art"><v-icon name="sparkles"/><span>NEW</span></div><button class="close" title="稍后更新" @click="updateModal=false"><v-icon name="x"/></button><small>ONLY US UPDATE</small><h3>发现新版本 {{updateInfo.version}}</h3><p>本次更新</p><ul><li v-for="line in updateInfo.notes.split('；')" :key="line"><v-icon name="check-circle-2"/>{{line}}</li></ul><div><button class="later" @click="updateModal=false">暂不更新</button><button class="primary" @click="installUpdate"><v-icon name="download"/>立即更新</button></div></div></div>
  <div class="overlay quick-overlay" v-if="quickAddOpen" @mousedown.self="quickAddOpen=false"><div class="quick-sheet"><i/><h3>记录此刻</h3><div><button @click="chooseQuickAdd('photo')"><span><v-icon name="camera"/></span>上传照片</button><button @click="chooseQuickAdd('notes')"><span><v-icon name="message-circle"/></span>写悄悄话</button><button @click="chooseQuickAdd('day')"><span><v-icon name="calendar-heart"/></span>加纪念日</button><button @click="chooseQuickAdd('future')"><span><v-icon name="mail"/></span>写未来信</button></div><button class="sheet-cancel" @click="quickAddOpen=false">取消</button></div></div>
 </div><div class="loading load-error" v-else-if="loadError"><v-icon name="cloud-off"/><b>暂时无法读取云端数据</b><span>请检查网络后重试，避免显示不准确的数据。</span><button @click="reloadPage">重新连接</button></div><div class="loading" v-else><v-icon name="heart" fill="currentColor"/>正在打开我们的故事…</div>`,
