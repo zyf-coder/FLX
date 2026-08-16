@@ -16,7 +16,15 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const COUPLE_ID = import.meta.env.VITE_COUPLE_ID;
 const UPDATE_URL = "https://zyf-coder.github.io/FLX/update.json";
-const WEB_VERSION = "20260816.2";
+const WEB_VERSION = "20260816.3";
+const REMEMBERED_PASSWORDS_KEY = "only-us-remembered-passwords";
+const rememberedPasswords = (() => {
+  try {
+    return JSON.parse(localStorage.getItem(REMEMBERED_PASSWORDS_KEY) || "{}") || {};
+  } catch (error) {
+    return {};
+  }
+})();
 const APP_PASSCODES = {
   a: import.meta.env.VITE_APP_PASSCODE_A || "zhangyafei",
   b: import.meta.env.VITE_APP_PASSCODE_B || "xudan",
@@ -341,6 +349,8 @@ new Vue({
     profileDraft: null,
     authenticated: sessionStorage.getItem("only-us-auth") === "yes",
     loginUser: "a",
+    loginPasscode: rememberedPasswords.a || "",
+    rememberPassword: Boolean(rememberedPasswords.a),
     loginError: "",
     loginPhotoIndex: 0,
     loginPhotoTimer: null,
@@ -471,17 +481,32 @@ new Vue({
   },
   methods: {
     login() {
-      const passcode = this.$refs.loginPasscode.value;
+      const passcode = this.loginPasscode;
       if (passcode !== APP_PASSCODES[this.loginUser]) {
         this.loginError = `${this.loginUser === "a" ? "小张同学" : "徐老师"}的密码不正确，请重新输入`;
-        this.$refs.loginPasscode.value = "";
+        this.loginPasscode = "";
         return;
       }
+      if (this.rememberPassword) {
+        rememberedPasswords[this.loginUser] = passcode;
+      } else {
+        delete rememberedPasswords[this.loginUser];
+      }
+      localStorage.setItem(
+        REMEMBERED_PASSWORDS_KEY,
+        JSON.stringify(rememberedPasswords)
+      );
       this.authenticated = true;
       this.loginError = "";
       sessionStorage.setItem("only-us-auth", "yes");
       sessionStorage.setItem("only-us-user", this.loginUser);
       this.showNotice("登录成功");
+    },
+    selectLoginUser(user) {
+      this.loginUser = user;
+      this.loginError = "";
+      this.loginPasscode = rememberedPasswords[user] || "";
+      this.rememberPassword = Boolean(rememberedPasswords[user]);
     },
     logout() {
       if (!confirm("确定要退出当前账号吗？")) return;
@@ -867,7 +892,7 @@ new Vue({
     },
   },
   template: `
-<div class="login-screen" v-if="ready&&!authenticated"><transition name="login-fade"><img :key="loginPhoto" :src="loginPhoto"/></transition><div class="login-shade"/><section class="login-panel"><span class="login-mark"><v-icon name="heart" fill="currentColor"/></span><small>ONLY US</small><h1>欢迎回到我们的故事</h1><p>选择身份并输入专属密码</p><div class="login-users"><button type="button" :class="{active:loginUser==='a'}" @click="loginUser='a';loginError=''"><i><img v-if="state.profile.avatarA" :src="state.profile.avatarA"><span v-else>{{state.profile.a[0]}}</span></i>{{state.profile.a}}</button><button type="button" :class="{active:loginUser==='b'}" @click="loginUser='b';loginError=''"><i><img v-if="state.profile.avatarB" :src="state.profile.avatarB"><span v-else>{{state.profile.b[0]}}</span></i>{{state.profile.b}}</button></div><form @submit.prevent="login"><label><v-icon name="key-round"/><input ref="loginPasscode" required type="password" autocomplete="current-password" maxlength="32" placeholder="输入专属密码"></label><em v-if="loginError">{{loginError}}</em><button>进入 Only Us <v-icon name="arrow-right"/></button></form><footer>徐老师与小张同学 · 只属于我们的空间</footer></section></div>
+<div class="login-screen" v-if="ready&&!authenticated"><transition name="login-fade"><img :key="loginPhoto" :src="loginPhoto"/></transition><div class="login-shade"/><section class="login-panel"><span class="login-mark"><v-icon name="heart" fill="currentColor"/></span><small>ONLY US</small><h1>欢迎回到我们的故事</h1><p>选择身份并输入专属密码</p><div class="login-users"><button type="button" :class="{active:loginUser==='a'}" @click="selectLoginUser('a')"><i><img v-if="state.profile.avatarA" :src="state.profile.avatarA"><span v-else>{{state.profile.a[0]}}</span></i>{{state.profile.a}}</button><button type="button" :class="{active:loginUser==='b'}" @click="selectLoginUser('b')"><i><img v-if="state.profile.avatarB" :src="state.profile.avatarB"><span v-else>{{state.profile.b[0]}}</span></i>{{state.profile.b}}</button></div><form autocomplete="on" @submit.prevent="login"><input class="login-username" name="username" autocomplete="username" :value="loginUser==='a'?'zhangyafei':'xudan'" readonly tabindex="-1"><label><v-icon name="key-round"/><input ref="loginPasscode" v-model="loginPasscode" name="password" required type="password" autocomplete="current-password" maxlength="32" placeholder="输入专属密码"></label><label class="remember-password"><input v-model="rememberPassword" type="checkbox"><i><v-icon name="check"/></i><span>记住密码</span></label><em v-if="loginError">{{loginError}}</em><button>进入 Only Us <v-icon name="arrow-right"/></button></form><footer>徐老师与小张同学 · 只属于我们的空间</footer></section></div>
 <div class="app" v-else-if="ready">
  <div class="app-toast" v-if="exitHint">再返回一次退出 APP</div>
  <div class="app-toast" v-if="appNotice">{{appNotice}}</div>
