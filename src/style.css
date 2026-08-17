@@ -2624,11 +2624,21 @@ footer svg {
   color: #4d3d43;
   outline: 0;
   -moz-appearance: textfield;
+  appearance: textfield;
+  accent-color: var(--pink);
+  caret-color: var(--pink);
 }
 .time-select input::-webkit-inner-spin-button,
 .time-select input::-webkit-outer-spin-button {
   margin: 0;
   opacity: 0.55;
+}
+.time-select:focus-within {
+  border-color: #e49ab3;
+  box-shadow: 0 0 0 3px rgba(230, 91, 139, 0.1);
+}
+.time-select input:focus {
+  color: var(--deep);
 }
 
 .confirm-overlay,

@@ -1,6 +1,6 @@
 {
-  "version": "1.4.3",
-  "versionCode": 18,
+  "version": "1.4.4",
+  "versionCode": 19,
   "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android.apk",
-  "notes": "取消登录面板的毛玻璃模糊，仅保留轻微透明暗层；背景照片保持原始清晰度，并单独增强文字可读性。"
+  "notes": "调整纪念日时间选择器颜色与交互状态，移除绿色默认高亮，统一暖粉色主题。"
 }
