@@ -1128,6 +1128,12 @@ main {
 }
 .gallery video { min-height: 180px; background: #171217; }
 .upload-preview video { pointer-events: none; }
+.gallery video::-webkit-media-controls-play-button {
+  transform: scale(.78);
+}
+.gallery video::-webkit-media-controls-panel {
+  min-height: 34px;
+}
 .gallery figcaption {
   padding: 12px;
   display: flex;
@@ -1142,6 +1148,8 @@ main {
   justify-content: space-between;
   gap: 10px;
 }
+.photo-memory figcaption > div b { text-align: left; }
+.photo-memory figcaption > div span { margin-left: auto; text-align: right; white-space: nowrap; }
 .photo-memory figcaption p {
   margin: 8px 0 0;
   color: #75666c;
