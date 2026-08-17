@@ -18,7 +18,7 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const COUPLE_ID = import.meta.env.VITE_COUPLE_ID;
 const UPDATE_URL = "https://zyf-coder.github.io/FLX/update.json";
-const WEB_VERSION = "1.2.0";
+const WEB_VERSION = "1.2.1";
 const AUTH_KEY = "only-us-auth";
 const SESSION_KEY = "only-us-session";
 const REMEMBERED_PASSWORDS_KEY = "only-us-remembered-passwords";
@@ -534,7 +534,7 @@ new Vue({
     state: {
       deep: true,
       handler(v) {
-        if (this.ready && !this.applyingRemote) this.persistState(v);
+        if (this.ready && !this.applyingRemote) this.persistState(v, true);
       },
     },
   },
