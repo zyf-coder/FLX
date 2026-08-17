@@ -4,7 +4,7 @@
   left: 50%;
   top: max(18px, calc(env(safe-area-inset-top) + 12px));
   transform: translateX(-50%);
-  z-index: 500;
+  z-index: 2000;
   width: max-content;
   max-width: calc(100vw - 32px);
   min-height: 46px;
@@ -2639,6 +2639,28 @@ footer svg {
 }
 .time-select input:focus {
   color: var(--deep);
+}
+.lunar-date-select {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.lunar-date-select select,
+.day-modal .form-field > select {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid #eadde2;
+  border-radius: 6px;
+  background: #fffafb;
+  color: #4d3d43;
+  padding: 0 10px;
+  outline: 0;
+  accent-color: var(--pink);
+}
+.lunar-date-select select:focus,
+.day-modal .form-field > select:focus {
+  border-color: #e49ab3;
+  box-shadow: 0 0 0 3px rgba(230, 91, 139, 0.1);
 }
 
 .confirm-overlay,
