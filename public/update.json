@@ -1,6 +1,6 @@
 {
-  "version": "1.4.10",
-  "versionCode": 25,
-  "androidUrl": "https://onlyforus.online/downloads/OnlyUs-Android.apk",
-  "notes": "优化移动端时间线布局；视频使用第一帧封面；相册按上传时间排序并支持替换媒体。"
+  "version": "1.4.11",
+  "versionCode": 26,
+  "androidUrl": "https://github.com/zyf-coder/FLX/raw/refs/heads/main/public/downloads/OnlyUs-Android.apk",
+  "notes": "更新检查统一使用 GitHub 主源，下载地址固定为 GitHub，避免域名或缓存导致无法提示更新。"
 }
