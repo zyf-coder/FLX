@@ -1,6 +1,6 @@
 {
-  "version": "1.2.1",
-  "versionCode": 11,
+  "version": "1.2.2",
+  "versionCode": 12,
   "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android.apk",
-  "notes": "登录成功后后台静默同步云端数据，不再弹出云端保存提示；相册上传支持即时预览、实时百分比进度和纪念文字编辑；优化纪念日卡片布局、手机端底部导航和页面切换动画。"
+  "notes": "统一优化操作提示样式，提示移动到手机屏幕上方并增加状态图标和动效；保存类提示改为简洁的“已保存”，不再展示云端同步技术文案；APP 回到前台时自动检查新版本。"
 }
