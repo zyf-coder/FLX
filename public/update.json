@@ -1,6 +1,6 @@
 {
-  "version": "1.4.0",
-  "versionCode": 15,
+  "version": "1.4.1",
+  "versionCode": 16,
   "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android.apk",
-  "notes": "登录方式调整为密码登录和邮箱验证码登录；为小张同学和徐老师绑定指定 QQ 邮箱；账号安全中的手机号功能替换为邮箱绑定与更换；移除需要企业资质的短信供应商流程。"
+  "notes": "同步小张同学和徐老师的生日纪念日，支持农历十月初十自动换算；重新设计透明登录界面和邮箱验证码输入框；版本号按同日、跨日、跨月规则递增。"
 }

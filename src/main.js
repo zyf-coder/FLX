@@ -7,6 +7,7 @@ import { Directory, Encoding, Filesystem } from "@capacitor/filesystem";
 import { LocalNotifications } from "@capacitor/local-notifications";
 import { Share } from "@capacitor/share";
 import { CapacitorCalendar } from "@ebarooni/capacitor-calendar";
+import { Lunar } from "lunar-javascript";
 import "./style.css";
 
 const PHOTO = `${import.meta.env.BASE_URL}temple-couple.jpg`;
@@ -18,7 +19,7 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const COUPLE_ID = import.meta.env.VITE_COUPLE_ID;
 const UPDATE_URL = "https://zyf-coder.github.io/FLX/update.json";
-const WEB_VERSION = "1.4.0";
+const WEB_VERSION = "1.4.1";
 const BOUND_EMAIL_ACCOUNTS = {
   a: {
     emailHash:
@@ -77,8 +78,26 @@ const defaults = {
     { id: 3, text: "去对方长大的地方走走", done: false },
   ],
   days: [
-    { id: 1, title: "在一起纪念日", date: "2026-05-20", icon: "💗" },
-    { id: 2, title: "她的生日", date: "2026-10-18", icon: "🎂" },
+    {
+      id: 20251030,
+      title: "小张同学的生日",
+      date: "2026-10-30",
+      icon: "🎂",
+      remindDays: 30,
+      time: "09:00",
+      calendar: "solar",
+    },
+    {
+      id: 1010,
+      title: "徐老师的生日",
+      date: "2026-11-18",
+      icon: "🎂",
+      remindDays: 30,
+      time: "09:00",
+      calendar: "lunar",
+      lunarMonth: 10,
+      lunarDay: 10,
+    },
   ],
   notes: [
     {
@@ -326,8 +345,39 @@ const formatRelativeTime = (value) => {
   return new Date(timestamp).toLocaleDateString("zh-CN");
 };
 const nextAnnualDate = (value, hour = 0) => {
+  const item = value && typeof value === "object" ? value : null;
+  if (item?.calendar === "lunar") {
+    const now = new Date();
+    let year = Lunar.fromDate(now).getYear();
+    let solar = Lunar.fromYmd(
+      year,
+      Number(item.lunarMonth),
+      Number(item.lunarDay)
+    ).getSolar();
+    let date = new Date(
+      solar.getYear(),
+      solar.getMonth() - 1,
+      solar.getDay(),
+      hour
+    );
+    if (date.getTime() <= now.getTime()) {
+      solar = Lunar.fromYmd(
+        year + 1,
+        Number(item.lunarMonth),
+        Number(item.lunarDay)
+      ).getSolar();
+      date = new Date(
+        solar.getYear(),
+        solar.getMonth() - 1,
+        solar.getDay(),
+        hour
+      );
+    }
+    return date;
+  }
+  const dateValue = item ? item.date : value;
   const date = new Date(
-    `${String(value).slice(0, 10)}T${String(hour).padStart(2, "0")}:00:00`
+    `${String(dateValue).slice(0, 10)}T${String(hour).padStart(2, "0")}:00:00`
   );
   const now = new Date();
   while (date.getTime() <= now.getTime())
@@ -442,20 +492,24 @@ Vue.component("anniversary-page", {
       return String(n).padStart(2, "0");
     },
     nextDate(item) {
-      return nextAnnualDate(item.date).getTime();
+      return nextAnnualDate(item).getTime();
     },
     dateLabel(item) {
-      return nextAnnualDate(item.date).toLocaleDateString("zh-CN", {
+      const label = nextAnnualDate(item).toLocaleDateString("zh-CN", {
         year: "numeric",
         month: "long",
         day: "numeric",
       });
+      return item.calendar === "lunar" ? `农历十月初十 · ${label}` : label;
+    },
+    recurrenceLabel(item) {
+      return item.calendar === "lunar" ? "每年农历十月初十" : "每年十月三十";
     },
     reminderDays(item) {
       return item.remindDays === 0 ? 0 : item.remindDays || 1;
     },
   },
-  template: `<section class="anniversary-page"><div class="anniversary-head"><div><span>我们的</span><h2>纪念日</h2></div><button title="添加纪念日" @click="$emit('add')"><v-icon name="plus"/></button></div><article class="together-card"><p>{{together.title}}</p><div class="big-duration"><strong>{{parts(together.date,true).days}}</strong><span>天</span><strong>{{pad(parts(together.date,true).hours)}}</strong><span>时</span><strong>{{pad(parts(together.date,true).minutes)}}</strong><span>分</span><strong>{{pad(parts(together.date,true).seconds)}}</strong><span>秒</span></div><footer>从 2025年10月26日 开始</footer></article><div class="day-section"><button class="section-label" @click="countdownOpen=!countdownOpen"><span>倒数纪念日 · {{items.length}}</span><i/><v-icon :name="countdownOpen?'chevron-up':'chevron-down'"/></button><div class="anniversary-grid" v-show="countdownOpen"><article class="event-card countdown-card" v-for="item in items" :key="item.id"><button class="event-delete" title="删除纪念日" @click="$emit('remove',item)"><v-icon name="trash-2"/></button><div class="event-title"><i><v-icon name="heart"/></i><b>{{item.title}}</b></div><div class="event-duration"><strong>{{parts(nextDate(item)).days}}</strong><span>天</span><strong>{{pad(parts(nextDate(item)).hours)}}</strong><span>时</span><strong>{{pad(parts(nextDate(item)).minutes)}}</strong><span>分</span></div><div class="event-meta"><span><v-icon name="refresh-cw"/>每年重复</span><span><v-icon name="bell"/>{{reminderDays(item)===0?'当天提醒':'提前'+reminderDays(item)+'天提醒'}}</span></div><small class="event-date">{{dateLabel(item)}}</small><button class="calendar-action" @click="$emit('calendar',item)"><v-icon name="calendar-plus"/>添加到手机日历</button></article><button class="empty-add" v-if="!items.length" @click="$emit('add')"><v-icon name="plus"/>添加第一个纪念日</button></div></div><div class="day-section elapsed-section"><button class="section-label" @click="elapsedOpen=!elapsedOpen"><span>共同经历</span><i/><v-icon :name="elapsedOpen?'chevron-up':'chevron-down'"/></button><div class="anniversary-grid" v-show="elapsedOpen"><article class="event-card elapsed-card" v-for="item in elapsed" :key="item.id"><div class="event-title"><i><v-icon name="heart"/></i><b>{{item.title}}</b></div><div class="event-duration"><strong>{{parts(item.date,true).days}}</strong><span>天</span></div><div class="event-meta">{{item.caption}}</div><v-icon class="card-mark" name="heart-handshake"/></article></div></div></section>`,
+  template: `<section class="anniversary-page"><div class="anniversary-head"><div><span>我们的</span><h2>纪念日</h2></div><button title="添加纪念日" @click="$emit('add')"><v-icon name="plus"/></button></div><article class="together-card"><p>{{together.title}}</p><div class="big-duration"><strong>{{parts(together.date,true).days}}</strong><span>天</span><strong>{{pad(parts(together.date,true).hours)}}</strong><span>时</span><strong>{{pad(parts(together.date,true).minutes)}}</strong><span>分</span><strong>{{pad(parts(together.date,true).seconds)}}</strong><span>秒</span></div><footer>从 2025年10月26日 开始</footer></article><div class="day-section"><button class="section-label" @click="countdownOpen=!countdownOpen"><span>倒数纪念日 · {{items.length}}</span><i/><v-icon :name="countdownOpen?'chevron-up':'chevron-down'"/></button><div class="anniversary-grid" v-show="countdownOpen"><article class="event-card countdown-card" v-for="item in items" :key="item.id"><button class="event-delete" title="删除纪念日" @click="$emit('remove',item)"><v-icon name="trash-2"/></button><div class="event-title"><i><v-icon name="heart"/></i><b>{{item.title}}</b></div><div class="event-duration"><strong>{{parts(nextDate(item)).days}}</strong><span>天</span><strong>{{pad(parts(nextDate(item)).hours)}}</strong><span>时</span><strong>{{pad(parts(nextDate(item)).minutes)}}</strong><span>分</span></div><div class="event-meta"><span><v-icon name="refresh-cw"/>{{recurrenceLabel(item)}}</span><span><v-icon name="bell"/>{{reminderDays(item)===0?'当天提醒':'提前'+reminderDays(item)+'天提醒'}}</span></div><small class="event-date">{{dateLabel(item)}}</small><button class="calendar-action" @click="$emit('calendar',item)"><v-icon name="calendar-plus"/>添加到手机日历</button></article><button class="empty-add" v-if="!items.length" @click="$emit('add')"><v-icon name="plus"/>添加第一个纪念日</button></div></div><div class="day-section elapsed-section"><button class="section-label" @click="elapsedOpen=!elapsedOpen"><span>共同经历</span><i/><v-icon :name="elapsedOpen?'chevron-up':'chevron-down'"/></button><div class="anniversary-grid" v-show="elapsedOpen"><article class="event-card elapsed-card" v-for="item in elapsed" :key="item.id"><div class="event-title"><i><v-icon name="heart"/></i><b>{{item.title}}</b></div><div class="event-duration"><strong>{{parts(item.date,true).days}}</strong><span>天</span></div><div class="event-meta">{{item.caption}}</div><v-icon class="card-mark" name="heart-handshake"/></article></div></div></section>`,
 });
 
 new Vue({
@@ -541,7 +595,7 @@ new Vue({
     },
     nextAnniversary() {
       return [...this.state.days]
-        .map((item) => ({ ...item, nextDate: nextAnnualDate(item.date) }))
+        .map((item) => ({ ...item, nextDate: nextAnnualDate(item) }))
         .sort((a, b) => a.nextDate - b.nextDate)[0];
     },
     latestNotes() {
@@ -918,7 +972,7 @@ new Vue({
     },
     async scheduleReminder(item) {
       if (!Capacitor.isNativePlatform()) return;
-      const at = nextAnnualDate(item.date, 9);
+      const at = nextAnnualDate(item, 9);
       const remindDays =
         item.remindDays === 0 ? 0 : Number(item.remindDays || 1);
       at.setDate(at.getDate() - remindDays);
@@ -1269,7 +1323,9 @@ new Vue({
     async addToPhoneCalendar(day) {
       if (!Capacitor.isNativePlatform()) return;
       try {
-        const start = new Date(`${day.date}T${day.time || "09:00"}:00`);
+        const [hour, minute] = (day.time || "09:00").split(":").map(Number);
+        const start = nextAnnualDate(day, hour);
+        start.setMinutes(minute || 0, 0, 0);
         await CapacitorCalendar.createEventWithPrompt({
           title: day.title,
           startDate: start.getTime(),
@@ -1373,7 +1429,7 @@ new Vue({
  <main>
   <template v-if="tab==='home'">
    <section class="hero"><img :src="'${PHOTO}'"><div class="shade"/><div class="hero-copy"><span class="eyebrow"><span/> OUR LOVE STORY <span/></span><h1>{{state.profile.a}} <v-icon name="heart" fill="currentColor"/> {{state.profile.b}}</h1><p>{{state.profile.quote}}</p><div class="counter"><div><strong>{{loveDays}}</strong><span>相爱的日子</span></div><i/><div><strong>{{startDate}}</strong><span>故事开始于</span></div></div></div><button class="float-heart" @click="rain"><v-icon name="heart" fill="currentColor"/></button></section>
-   <section class="quick"><article @click="go('album')"><div class="qicon pink"><v-icon name="images"/></div><div><b>恋爱相册</b><span>{{state.photos.length}} 张珍贵回忆</span></div><v-icon name="chevron-right"/></article><article @click="go('list')"><div class="qicon purple"><v-icon name="square-check-big"/></div><div><b>恋爱清单</b><span>{{doneCount}}/{{state.todos.length}} 已完成</span></div><v-icon name="chevron-right"/></article><article @click="go('days')"><div class="qicon amber"><v-icon name="calendar-heart"/></div><div><b>下个纪念日</b><span>{{nextAnniversary ? nextAnniversary.title : '添加纪念日'}}</span></div><strong>{{nextAnniversary ? until(nextAnniversary.date) : '+'}}<small>天</small></strong></article></section>
+   <section class="quick"><article @click="go('album')"><div class="qicon pink"><v-icon name="images"/></div><div><b>恋爱相册</b><span>{{state.photos.length}} 张珍贵回忆</span></div><v-icon name="chevron-right"/></article><article @click="go('list')"><div class="qicon purple"><v-icon name="square-check-big"/></div><div><b>恋爱清单</b><span>{{doneCount}}/{{state.todos.length}} 已完成</span></div><v-icon name="chevron-right"/></article><article @click="go('days')"><div class="qicon amber"><v-icon name="calendar-heart"/></div><div><b>下个纪念日</b><span>{{nextAnniversary ? nextAnniversary.title : '添加纪念日'}}</span></div><strong>{{nextAnniversary ? until(nextAnniversary) : '+'}}<small>天</small></strong></article></section>
    <section class="home-grid"><div class="panel"><div class="title"><span><v-icon name="clock-3"/></span><div><b>爱情时间线</b><small>每个瞬间，都值得被记住</small></div><button @click="go('story')">查看全部 <v-icon name="chevron-right"/></button></div><love-timeline :items="state.stories.slice(-3)"/></div><div class="panel"><div class="title"><span><v-icon name="message-circle"/></span><div><b>悄悄话</b><small>只给你看的甜蜜留言</small></div><button @click="go('notes')">查看全部 <v-icon name="chevron-right"/></button></div><love-note v-for="n in latestNotes" :key="n.id" :note="n" :profile="state.profile"/></div></section>
    <section class="surprise"><v-icon name="gift"/><div><b>今日份的小惊喜</b><p>点击开启属于你们的浪漫时刻</p></div><button @click="rain">开启惊喜 <v-icon name="sparkles"/></button></section>
   </template>

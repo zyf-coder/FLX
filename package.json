@@ -19,6 +19,7 @@
     "@capacitor/share": "^5.0.8",
     "@ebarooni/capacitor-calendar": "^5.5.0",
     "lucide": "0.468.0",
+    "lunar-javascript": "^1.7.7",
     "vite": "4.5.14",
     "vue": "2.7.16"
   },
