@@ -19,7 +19,10 @@ const LOCAL_BACKUP_KEY = "only-us-backup";
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const COUPLE_ID = import.meta.env.VITE_COUPLE_ID;
-const UPDATE_URL = "https://onlyforus.online/update.json";
+const UPDATE_URLS = [
+  "https://onlyforus.online/update.json",
+  "https://raw.githubusercontent.com/zyf-coder/FLX/main/public/update.json",
+];
 const WEB_VERSION = "1.4.9";
 const BOUND_EMAIL_ACCOUNTS = {
   a: {
@@ -1056,11 +1059,23 @@ new Vue({
           ? await NativeApp.getInfo()
           : { version: WEB_VERSION };
         this.currentVersion = appInfo.version;
-        const response = await fetch(`${UPDATE_URL}?t=${Date.now()}`, {
-          cache: "no-store",
-        });
-        if (!response.ok) return;
-        const update = await response.json();
+        let update = null;
+        for (const url of UPDATE_URLS) {
+          try {
+            const response = await fetch(`${url}?t=${Date.now()}`, {
+              cache: "no-store",
+            });
+            if (!response.ok) continue;
+            update = await response.json();
+            if (url.includes("raw.githubusercontent.com"))
+              update.androidUrl =
+                "https://raw.githubusercontent.com/zyf-coder/FLX/main/public/downloads/OnlyUs-Android.apk";
+            break;
+          } catch (error) {
+            console.warn("更新源暂不可用", url, error);
+          }
+        }
+        if (!update) throw new Error("所有更新源均不可用");
         if (isNewerVersion(update.version, appInfo.version)) {
           this.updateInfo = update;
           this.updateModal = true;
