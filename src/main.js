@@ -832,7 +832,11 @@ new Vue({
     },
     setupNativeLifecycle() {
       NativeApp.addListener("appStateChange", ({ isActive }) => {
-        if (!isActive && this.$refs.bgm) this.$refs.bgm.pause();
+        if (!isActive && this.$refs.bgm) {
+          this.$refs.bgm.pause();
+          return;
+        }
+        if (isActive) this.checkForUpdate();
       });
     },
     async scheduleAllReminders() {
