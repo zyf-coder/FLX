@@ -2040,6 +2040,7 @@ footer svg {
   .me-page {
     margin: 0 -14px;
     min-height: auto;
+    padding-top: 0;
     padding-bottom: 0;
   }
   .me-cover {
