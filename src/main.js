@@ -18,17 +18,17 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const COUPLE_ID = import.meta.env.VITE_COUPLE_ID;
 const UPDATE_URL = "https://zyf-coder.github.io/FLX/update.json";
-const WEB_VERSION = "1.3.0";
-const BOUND_PHONE_ACCOUNTS = {
+const WEB_VERSION = "1.4.0";
+const BOUND_EMAIL_ACCOUNTS = {
   a: {
-    phoneHash:
-      "bfda200e42bb7418d575072fe58f53ac4014d64a6dc7dd5fd9182cd754817978",
-    phoneTail: "6373",
+    emailHash:
+      "9a9b2100bd1cf27aa7d1d0d23e16c314e752391330ba03d200b0c04300cff4a1",
+    emailMasked: "2409****207@qq.com",
   },
   b: {
-    phoneHash:
-      "bf4d8a715747ff9802fe6a9c2a3448c84df675b55b8ff890c20f6a7509bd137f",
-    phoneTail: "2671",
+    emailHash:
+      "f7a48ade9ec343a07ca465746464e08e1e4300491ba9865ff5f61b2e0fcea3bf",
+    emailMasked: "1161****837@qq.com",
   },
 };
 const AUTH_KEY = "only-us-auth";
@@ -210,19 +210,18 @@ const cloud = {
     if (!response.ok) throw new Error(`Cloud write failed: ${response.status}`);
   },
 };
-const smsApi = async (action, phone, purpose, code = "") => {
-  const response = await fetch(`${SUPABASE_URL}/functions/v1/sms-code`, {
+const emailOtpApi = async (action, email, token = "") => {
+  const endpoint = action === "send" ? "otp" : "verify";
+  const body =
+    action === "send"
+      ? { email, create_user: true }
+      : { email, token, type: "email" };
+  const response = await fetch(`${SUPABASE_URL}/auth/v1/${endpoint}`, {
     method: "POST",
-    headers: {
-      apikey: SUPABASE_KEY,
-      Authorization: `Bearer ${SUPABASE_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ action, phone, purpose, code }),
+    headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
   });
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(result.error || "短信服务暂不可用");
-  return result;
+  if (!response.ok) throw new Error("邮箱验证码发送或验证失败");
 };
 const uploadStorageObject = async (path, blob, onProgress = () => {}) => {
   let lastError;
@@ -496,7 +495,7 @@ new Vue({
     accountStep: "form",
     accountView: "menu",
     loginMode: "password",
-    phoneInput: "",
+    emailInput: "",
     otpInput: "",
     otpVerified: false,
     deleteConfirm: null,
@@ -603,12 +602,12 @@ new Vue({
     this.state.meta = this.state.meta || {};
     this.state.meta.sessions = this.state.meta.sessions || {};
     this.state.meta.accounts = this.state.meta.accounts || {};
-    for (const [user, phone] of Object.entries(BOUND_PHONE_ACCOUNTS)) {
+    for (const [user, email] of Object.entries(BOUND_EMAIL_ACCOUNTS)) {
       const account = this.state.meta.accounts[user] || {};
       this.$set(
         this.state.meta.accounts,
         user,
-        account.phoneHash ? account : { ...account, ...phone }
+        account.emailHash ? account : { ...account, ...email }
       );
     }
     if (!this.state.meta.todoDefaultsCleared) {
@@ -720,20 +719,20 @@ new Vue({
       this.accountModal = "security";
       this.accountView = "menu";
       this.accountStep = "form";
-      this.phoneInput = "";
+      this.emailInput = "";
       this.otpInput = "";
       this.otpVerified = false;
     },
     openAccountSection(view) {
       this.accountView = view;
       this.accountStep = "form";
-      this.phoneInput = "";
+      this.emailInput = "";
       this.otpInput = "";
     },
     openForgotPassword() {
       this.accountModal = "forgot";
-      this.accountStep = "phone";
-      this.phoneInput = "";
+      this.accountStep = "email";
+      this.emailInput = "";
       this.otpInput = "";
       this.otpVerified = false;
     },
@@ -763,52 +762,47 @@ new Vue({
       this.accountModal = "";
       this.showNotice("密码修改成功并已同步到云端");
     },
-    async sendPhoneOtp() {
-      const phone = this.phoneInput.trim();
-      if (!/^1\d{10}$/.test(phone))
-        return this.showNotice("请输入正确的11位手机号");
+    async sendEmailOtp() {
+      const email = this.emailInput.trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+        return this.showNotice("请输入正确的邮箱地址");
       const account = this.state.meta?.accounts?.[this.loginUser] || {};
-      const phoneHash = await sha256(phone);
+      const emailHash = await sha256(email);
       if (
         this.accountModal === "forgot" &&
-        (!account.phoneHash || phoneHash !== account.phoneHash)
+        (!account.emailHash || emailHash !== account.emailHash)
       )
-        return this.showNotice("手机号与当前账号绑定信息不一致");
+        return this.showNotice("邮箱与当前账号绑定信息不一致");
       try {
-        await smsApi(
-          "send",
-          phone,
-          this.accountModal === "security" ? "bind" : "reset"
-        );
+        await emailOtpApi("send", email);
         this.accountStep = "otp";
         this.showNotice("验证码已发送");
       } catch (error) {
-        this.showNotice(error.message || "短信服务暂不可用");
-        console.warn("发送短信验证码失败", error);
+        this.showNotice("邮箱验证码发送失败");
+        console.warn("发送邮箱验证码失败", error);
       }
     },
     async sendLoginOtp() {
-      const phone = this.phoneInput.trim();
-      if (!/^1\d{10}$/.test(phone))
-        return this.showNotice("请输入正确的11位手机号");
+      const email = this.emailInput.trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+        return this.showNotice("请输入正确的邮箱地址");
       const account = this.state.meta?.accounts?.[this.loginUser] || {};
-      if ((await sha256(phone)) !== account.phoneHash)
-        return this.showNotice("手机号与所选账号不一致");
+      if ((await sha256(email)) !== account.emailHash)
+        return this.showNotice("邮箱与所选账号不一致");
       try {
-        await smsApi("send", phone, "login");
+        await emailOtpApi("send", email);
         this.accountStep = "loginOtp";
         this.showNotice("验证码已发送");
       } catch (error) {
-        this.showNotice(error.message || "短信服务暂不可用");
+        this.showNotice("邮箱验证码发送失败");
         console.warn("登录验证码发送失败", error);
       }
     },
     async verifyLoginOtp() {
       try {
-        await smsApi(
+        await emailOtpApi(
           "verify",
-          this.phoneInput.trim(),
-          "login",
+          this.emailInput.trim().toLowerCase(),
           this.otpInput.trim()
         );
         this.finishLogin();
@@ -816,14 +810,13 @@ new Vue({
         this.showNotice("验证码错误或已失效");
       }
     },
-    async verifyPhoneOtp() {
+    async verifyEmailOtp() {
       if (!/^\d{4,8}$/.test(this.otpInput.trim()))
-        return this.showNotice("请输入短信验证码");
+        return this.showNotice("请输入邮箱验证码");
       try {
-        await smsApi(
+        await emailOtpApi(
           "verify",
-          this.phoneInput.trim(),
-          this.accountModal === "security" ? "bind" : "reset",
+          this.emailInput.trim().toLowerCase(),
           this.otpInput.trim()
         );
         this.otpVerified = true;
@@ -831,11 +824,14 @@ new Vue({
           this.state.meta.accounts = this.state.meta.accounts || {};
           this.$set(this.state.meta.accounts, this.loginUser, {
             ...(this.state.meta.accounts[this.loginUser] || {}),
-            phoneHash: await sha256(this.phoneInput.trim()),
-            phoneTail: this.phoneInput.trim().slice(-4),
+            emailHash: await sha256(this.emailInput.trim().toLowerCase()),
+            emailMasked: this.emailInput
+              .trim()
+              .toLowerCase()
+              .replace(/^(.{4}).*(@.*)$/, "$1****$2"),
           });
           this.accountModal = "";
-          this.showNotice("手机号绑定成功");
+          this.showNotice("邮箱绑定成功");
         } else {
           this.accountStep = "reset";
         }
@@ -1366,7 +1362,7 @@ new Vue({
     },
   },
   template: `
-<div class="login-screen" v-if="!authenticated"><transition name="login-fade"><img :key="loginPhoto" :src="loginPhoto"/></transition><div class="login-shade"/><div class="login-meteors" aria-hidden="true"><i v-for="n in 7" :key="n" :style="{'--meteor':n}"/></div><section class="login-panel"><span class="login-mark"><v-icon name="heart" fill="currentColor"/></span><small>ONLY US</small><h1>欢迎回到我们的故事</h1><p>选择身份并完成验证</p><div class="login-users"><button type="button" :class="{active:loginUser==='a'}" @click="selectLoginUser('a')"><i><img v-if="state.profile.avatarA" :src="state.profile.avatarA"><span v-else>{{state.profile.a[0]}}</span></i>{{state.profile.a}}</button><button type="button" :class="{active:loginUser==='b'}" @click="selectLoginUser('b')"><i><img v-if="state.profile.avatarB" :src="state.profile.avatarB"><span v-else>{{state.profile.b[0]}}</span></i>{{state.profile.b}}</button></div><div class="login-mode"><button :class="{active:loginMode==='password'}" @click="loginMode='password';accountStep='form'">密码登录</button><button :class="{active:loginMode==='sms'}" @click="loginMode='sms';accountStep='form'">验证码登录</button></div><form v-if="loginMode==='password'" autocomplete="on" @submit.prevent="login"><input class="login-username" name="username" autocomplete="username" :value="loginUser==='a'?'zhangyafei':'xudan'" readonly tabindex="-1"><label><v-icon name="key-round"/><input ref="loginPasscode" v-model="loginPasscode" name="password" required type="password" autocomplete="current-password" maxlength="32" placeholder="输入专属密码"></label><div class="login-options"><label class="remember-password"><input v-model="rememberPassword" type="checkbox"><i><v-icon name="check"/></i><span>记住密码</span></label><button type="button" @click="openForgotPassword">忘记密码</button></div><em v-if="loginError">{{loginError}}</em><button :disabled="!ready">{{ready?'进入 Only Us':'正在同步账号'}} <v-icon name="arrow-right"/></button></form><div v-else class="login-sms"><label><v-icon name="smartphone"/><input v-model="phoneInput" inputmode="tel" maxlength="11" placeholder="输入绑定手机号"></label><label v-if="accountStep==='loginOtp'"><v-icon name="shield-check"/><input v-model="otpInput" inputmode="numeric" maxlength="8" placeholder="输入短信验证码"></label><button v-if="accountStep!=='loginOtp'" :disabled="!ready" @click="sendLoginOtp">获取验证码</button><button v-else @click="verifyLoginOtp">验证并登录 <v-icon name="arrow-right"/></button></div><footer>徐老师与小张同学 · 只属于我们的空间</footer></section><div class="overlay account-overlay" v-if="accountModal==='forgot'"><div class="account-dialog"><button class="account-close" @click="accountModal=''"><v-icon name="x"/></button><span class="account-icon"><v-icon name="key-round"/></span><h3>找回密码</h3><p v-if="accountStep==='phone'">输入当前账号绑定的手机号</p><div v-if="accountStep==='phone'" class="account-fields"><input v-model="phoneInput" inputmode="tel" maxlength="11" placeholder="绑定手机号"><button class="primary" @click="sendPhoneOtp">发送验证码</button></div><div v-else-if="accountStep==='otp'" class="account-fields"><input v-model="otpInput" inputmode="numeric" maxlength="8" placeholder="短信验证码"><button class="primary" @click="verifyPhoneOtp">验证手机号</button></div><form v-else class="account-fields" @submit.prevent="resetForgottenPassword"><input required name="next" type="password" minlength="6" placeholder="设置新密码"><input required name="confirmNext" type="password" minlength="6" placeholder="再次输入新密码"><button class="primary">确认重置密码</button></form><small>验证码发送失败时，请稍后重试或使用密码登录</small></div></div></div>
+<div class="login-screen" v-if="!authenticated"><transition name="login-fade"><img :key="loginPhoto" :src="loginPhoto"/></transition><div class="login-shade"/><div class="login-meteors" aria-hidden="true"><i v-for="n in 7" :key="n" :style="{'--meteor':n}"/></div><section class="login-panel"><span class="login-mark"><v-icon name="heart" fill="currentColor"/></span><small>ONLY US</small><h1>欢迎回到我们的故事</h1><p>选择身份并完成验证</p><div class="login-users"><button type="button" :class="{active:loginUser==='a'}" @click="selectLoginUser('a')"><i><img v-if="state.profile.avatarA" :src="state.profile.avatarA"><span v-else>{{state.profile.a[0]}}</span></i>{{state.profile.a}}</button><button type="button" :class="{active:loginUser==='b'}" @click="selectLoginUser('b')"><i><img v-if="state.profile.avatarB" :src="state.profile.avatarB"><span v-else>{{state.profile.b[0]}}</span></i>{{state.profile.b}}</button></div><div class="login-mode"><button :class="{active:loginMode==='password'}" @click="loginMode='password';accountStep='form'">密码登录</button><button :class="{active:loginMode==='email'}" @click="loginMode='email';accountStep='form'">邮箱登录</button></div><form v-if="loginMode==='password'" autocomplete="on" @submit.prevent="login"><input class="login-username" name="username" autocomplete="username" :value="loginUser==='a'?'zhangyafei':'xudan'" readonly tabindex="-1"><label><v-icon name="key-round"/><input ref="loginPasscode" v-model="loginPasscode" name="password" required type="password" autocomplete="current-password" maxlength="32" placeholder="输入专属密码"></label><div class="login-options"><label class="remember-password"><input v-model="rememberPassword" type="checkbox"><i><v-icon name="check"/></i><span>记住密码</span></label><button type="button" @click="openForgotPassword">忘记密码</button></div><em v-if="loginError">{{loginError}}</em><button :disabled="!ready">{{ready?'进入 Only Us':'正在同步账号'}} <v-icon name="arrow-right"/></button></form><div v-else class="login-sms"><label><v-icon name="mail"/><input v-model="emailInput" inputmode="email" placeholder="输入绑定邮箱"></label><label v-if="accountStep==='loginOtp'"><v-icon name="shield-check"/><input v-model="otpInput" inputmode="numeric" maxlength="8" placeholder="输入邮箱验证码"></label><button v-if="accountStep!=='loginOtp'" :disabled="!ready" @click="sendLoginOtp">获取验证码</button><button v-else @click="verifyLoginOtp">验证并登录 <v-icon name="arrow-right"/></button></div><footer>徐老师与小张同学 · 只属于我们的空间</footer></section><div class="overlay account-overlay" v-if="accountModal==='forgot'"><div class="account-dialog"><button class="account-close" @click="accountModal=''"><v-icon name="x"/></button><span class="account-icon"><v-icon name="key-round"/></span><h3>找回密码</h3><p v-if="accountStep==='email'">输入当前账号绑定的邮箱</p><div v-if="accountStep==='email'" class="account-fields"><input v-model="emailInput" inputmode="email" placeholder="绑定邮箱"><button class="primary" @click="sendEmailOtp">发送验证码</button></div><div v-else-if="accountStep==='otp'" class="account-fields"><input v-model="otpInput" inputmode="numeric" maxlength="8" placeholder="邮箱验证码"><button class="primary" @click="verifyEmailOtp">验证邮箱</button></div><form v-else class="account-fields" @submit.prevent="resetForgottenPassword"><input required name="next" type="password" minlength="6" placeholder="设置新密码"><input required name="confirmNext" type="password" minlength="6" placeholder="再次输入新密码"><button class="primary">确认重置密码</button></form><small>验证码发送失败时，请稍后重试或使用密码登录</small></div></div></div>
 <div class="app" v-else-if="ready">
  <div class="app-toast exit-toast" v-if="exitHint"><v-icon name="info"/><span>再返回一次退出 APP</span></div>
  <transition name="toast"><div class="app-toast" :class="'toast-'+appNoticeType" v-if="appNotice"><v-icon :name="appNoticeType==='error'?'circle-alert':appNoticeType==='info'?'info':'check-circle-2'"/><span>{{appNotice}}</span></div></transition>
@@ -1386,13 +1382,13 @@ new Vue({
   <anniversary-page v-if="tab==='days'" :items="state.days" @add="modal='day'" @remove="removeAnniversary" @calendar="addToPhoneCalendar"/>
   <section class="page" v-if="tab==='notes'"><div class="page-head"><div><h2>悄悄话</h2><p>忙碌的日子里，也别忘了说爱你。</p></div></div><form class="noteform" @submit.prevent="addNote"><textarea ref="note" maxlength="120" placeholder="写一句只给 TA 看的话…"/><button><v-icon name="send"/>发送留言</button></form><love-note v-for="n in state.notes" :key="n.id" :note="n" :profile="state.profile"/></section>
   <section class="page future-page" v-if="tab==='future'"><div class="page-head"><div><h2>未来的信</h2><p>把此刻想说的话，交给未来的某一天。</p></div></div><form class="letter-form" @submit.prevent="addLetter"><textarea ref="letterText" required maxlength="500" placeholder="写给未来的我们…"/><label><v-icon name="calendar-days"/><span>开启日期</span><input ref="letterDate" required type="date"></label><button class="primary"><v-icon name="lock-keyhole"/>封存这封信</button></form><div class="letters"><article v-for="letter in state.letters" :key="letter.id" :class="{locked:!letterReady(letter)}"><div><v-icon :name="letterReady(letter)?'mail-open':'lock-keyhole'"/></div><section><b>{{letterReady(letter)?'来自过去的一封信':'尚未到开启时间'}}</b><p v-if="letterReady(letter)">{{letter.text}}</p><p v-else>这封信将在 {{letter.openDate}} 开启</p><small>写于 {{new Date(letter.createdAt).toLocaleDateString('zh-CN')}}</small></section><button title="删除未来信" @click="confirmDelete('letters',letter.id,'这封未来信')"><v-icon name="trash-2"/></button></article><div class="empty-state" v-if="!state.letters.length"><v-icon name="mail"/><b>还没有未来信</b><span>写下第一封，留给未来的你们。</span></div></div></section>
-  <section class="page me-page" v-if="tab==='me'"><div class="me-cover"><span>ONLY US</span><h2>我们的空间</h2><p>{{state.profile.a}} 与 {{state.profile.b}}</p></div><div class="couple-profile"><article><label class="avatar-editor"><img v-if="state.profile.avatarA" :src="state.profile.avatarA"><span v-else>{{state.profile.a[0]}}</span><i><v-icon name="camera"/></i><input hidden type="file" accept="image/*" @change="changeAvatar('avatarA',$event)"></label><b>{{state.profile.a}}</b></article><v-icon class="profile-heart" name="heart" fill="currentColor"/><article><label class="avatar-editor"><img v-if="state.profile.avatarB" :src="state.profile.avatarB"><span v-else>{{state.profile.b[0]}}</span><i><v-icon name="camera"/></i><input hidden type="file" accept="image/*" @change="changeAvatar('avatarB',$event)"></label><b>{{state.profile.b}}</b></article></div><template v-if="!profileEditing"><section class="profile-signature profile-value"><div><i><v-icon name="quote"/></i><span><b>我们的签名</b><small>会展示在首页照片上</small></span></div><p>{{state.profile.quote||'还没有设置签名'}}</p></section><section class="settings-list"><div class="setting-view"><i><v-icon name="calendar-heart"/></i><span><b>恋爱开始日期</b><small>{{startDate}}</small></span></div><button @click="startProfileEdit"><i><v-icon name="user-pen"/></i><span><b>编辑资料</b><small>修改昵称、恋爱日期和我们的签名</small></span><v-icon name="chevron-right"/></button><button @click="openAccountSecurity"><i><v-icon name="shield-check"/></i><span><b>账号与安全</b><small>修改密码、绑定或更换手机号</small></span><v-icon name="chevron-right"/></button><button class="about-row" @click="updateInfo?updateModal=true:checkForUpdate(true)"><i><v-icon name="info"/></i><span><b>关于我们 <em v-if="updateInfo">有更新</em></b><small>当前版本 {{currentVersion}}{{updateInfo?' · 最新 '+updateInfo.version:''}}</small></span><v-icon name="chevron-right"/></button><button class="logout-row" @click="logout"><i><v-icon name="log-out"/></i><span><b>退出登录</b><small>退出当前账号并返回登录页面</small></span><v-icon name="chevron-right"/></button></section></template><form v-else class="profile-edit-form" @submit.prevent="saveProfile"><div class="profile-edit-heading"><span><v-icon name="user-pen"/></span><div><h3>编辑我们的资料</h3><p>修改后将实时保存到云端</p></div></div><div class="name-edit-grid"><label class="form-field"><span>昵称一</span><input required v-model="profileDraft.a" maxlength="12"></label><label class="form-field"><span>昵称二</span><input required v-model="profileDraft.b" maxlength="12"></label></div><label class="form-field"><span>恋爱开始日期</span><input required type="date" v-model="profileDraft.since"></label><label class="form-field"><span>我们的签名</span><textarea v-model="profileDraft.quote" maxlength="50" placeholder="写一句属于你们的话…"/></label><div><button type="button" @click="cancelProfileEdit">取消</button><button class="primary"><v-icon name="check"/>保存资料</button></div></form></section>
+  <section class="page me-page" v-if="tab==='me'"><div class="me-cover"><span>ONLY US</span><h2>我们的空间</h2><p>{{state.profile.a}} 与 {{state.profile.b}}</p></div><div class="couple-profile"><article><label class="avatar-editor"><img v-if="state.profile.avatarA" :src="state.profile.avatarA"><span v-else>{{state.profile.a[0]}}</span><i><v-icon name="camera"/></i><input hidden type="file" accept="image/*" @change="changeAvatar('avatarA',$event)"></label><b>{{state.profile.a}}</b></article><v-icon class="profile-heart" name="heart" fill="currentColor"/><article><label class="avatar-editor"><img v-if="state.profile.avatarB" :src="state.profile.avatarB"><span v-else>{{state.profile.b[0]}}</span><i><v-icon name="camera"/></i><input hidden type="file" accept="image/*" @change="changeAvatar('avatarB',$event)"></label><b>{{state.profile.b}}</b></article></div><template v-if="!profileEditing"><section class="profile-signature profile-value"><div><i><v-icon name="quote"/></i><span><b>我们的签名</b><small>会展示在首页照片上</small></span></div><p>{{state.profile.quote||'还没有设置签名'}}</p></section><section class="settings-list"><div class="setting-view"><i><v-icon name="calendar-heart"/></i><span><b>恋爱开始日期</b><small>{{startDate}}</small></span></div><button @click="startProfileEdit"><i><v-icon name="user-pen"/></i><span><b>编辑资料</b><small>修改昵称、恋爱日期和我们的签名</small></span><v-icon name="chevron-right"/></button><button @click="openAccountSecurity"><i><v-icon name="shield-check"/></i><span><b>账号与安全</b><small>修改密码、绑定或更换邮箱</small></span><v-icon name="chevron-right"/></button><button class="about-row" @click="updateInfo?updateModal=true:checkForUpdate(true)"><i><v-icon name="info"/></i><span><b>关于我们 <em v-if="updateInfo">有更新</em></b><small>当前版本 {{currentVersion}}{{updateInfo?' · 最新 '+updateInfo.version:''}}</small></span><v-icon name="chevron-right"/></button><button class="logout-row" @click="logout"><i><v-icon name="log-out"/></i><span><b>退出登录</b><small>退出当前账号并返回登录页面</small></span><v-icon name="chevron-right"/></button></section></template><form v-else class="profile-edit-form" @submit.prevent="saveProfile"><div class="profile-edit-heading"><span><v-icon name="user-pen"/></span><div><h3>编辑我们的资料</h3><p>修改后将实时保存到云端</p></div></div><div class="name-edit-grid"><label class="form-field"><span>昵称一</span><input required v-model="profileDraft.a" maxlength="12"></label><label class="form-field"><span>昵称二</span><input required v-model="profileDraft.b" maxlength="12"></label></div><label class="form-field"><span>恋爱开始日期</span><input required type="date" v-model="profileDraft.since"></label><label class="form-field"><span>我们的签名</span><textarea v-model="profileDraft.quote" maxlength="50" placeholder="写一句属于你们的话…"/></label><div><button type="button" @click="cancelProfileEdit">取消</button><button class="primary"><v-icon name="check"/>保存资料</button></div></form></section>
   <section class="page" v-if="tab==='story'"><div class="page-head"><div><h2>我们的故事</h2><p>从相遇到未来，每一章都由我们共同写下。</p></div><button class="primary" @click="modal='story'"><v-icon name="plus"/>记录故事</button></div><love-timeline :items="state.stories" editable @remove="removeStory"/><div class="backup"><b>数据备份</b><span>{{cloudEnabled?cloudSync:'当前仅保存在本机，卸载 APP 前请先导出备份。'}}</span><button @click="exportData"><v-icon name="download"/>导出</button><label><v-icon name="upload"/>导入<input hidden type="file" accept="application/json" @change="importData"></label></div></section>
  </main><footer><v-icon name="heart" fill="currentColor"/> Only Us · 愿每一天都值得纪念</footer>
  <div class="overlay" v-if="modal" @mousedown.self="modal=null"><div class="modal" :class="{'day-modal':modal==='day'}"><button class="close" @click="modal=null"><v-icon name="x"/></button><small v-if="modal==='day'">ONLY US CALENDAR</small><h3>{{modal==='day'?'添加纪念日':'记录故事'}}</h3><form @submit.prevent="saveModal"><label class="form-field"><span>纪念日名称</span><input required name="title" placeholder="例如：第一次旅行"></label><div class="date-time-grid" v-if="modal==='day'"><label class="form-field"><span><v-icon name="calendar-days"/>日期</span><input required name="date" type="date"></label><label class="form-field"><span><v-icon name="clock-3"/>时间</span><div class="time-select"><input name="hour" aria-label="小时" type="number" inputmode="numeric" min="0" max="23" value="9"><b>:</b><input name="minute" aria-label="分钟" type="number" inputmode="numeric" min="0" max="59" step="5" value="0"></div></label></div><label class="form-field" v-else><span>日期</span><input required name="date" type="date"></label><label class="remind-field" v-if="modal==='day'"><span><v-icon name="bell-ring"/>提前提醒</span><select name="remindDays"><option value="0">当天提醒</option><option value="1" selected>提前1天</option><option value="3">提前3天</option><option value="7">提前7天</option><option value="30">提前30天</option></select></label><label class="calendar-toggle" v-if="modal==='day'"><span><i><v-icon name="calendar-plus"/></i><b>添加到手机日历</b><small>保存后打开系统日历确认</small></span><input type="checkbox" name="addCalendar" checked><i/></label><textarea v-if="modal==='story'" required name="text" placeholder="那天发生了什么…"/><button class="primary">{{modal==='day'?'保存并设置提醒':'保存'}}</button></form></div></div>
  <div class="overlay" v-if="photoEditing" @mousedown.self="photoEditing=null"><div class="modal photo-edit-modal"><button class="close" @click="photoEditing=null"><v-icon name="x"/></button><small>PHOTO MEMORY</small><h3>编辑照片纪念</h3><form @submit.prevent="savePhotoText"><label class="form-field"><span>纪念标题</span><input required v-model="photoDraft.title" maxlength="30" placeholder="例如：第一次旅行"></label><label class="form-field"><span>拍摄日期</span><input required type="date" v-model="photoDraft.date"></label><label class="form-field"><span>纪念文字</span><textarea v-model="photoDraft.description" maxlength="200" placeholder="写下这张照片背后的故事…"/></label><button class="primary"><v-icon name="check"/>保存纪念内容</button></form></div></div>
  <div class="overlay confirm-overlay" v-if="logoutConfirm"><div class="confirm-dialog"><span><v-icon name="log-out"/></span><h3>退出当前账号？</h3><p>退出后需要重新验证密码才能进入。</p><div><button @click="logoutConfirm=false">取消</button><button class="danger" @click="confirmLogout">确认退出</button></div></div></div>
- <div class="overlay account-overlay" v-if="accountModal==='security'"><div class="account-dialog security-dialog"><button class="account-close" @click="accountModal=''"><v-icon name="x"/></button><button class="account-back" v-if="accountView!=='menu'" @click="accountView='menu';accountStep='form'"><v-icon name="chevron-left"/>返回</button><span class="account-icon"><v-icon :name="accountView==='password'?'key-round':accountView==='phone'?'smartphone':'shield-check'"/></span><h3>{{accountView==='password'?'修改密码':accountView==='phone'?'绑定手机号':'账号与安全'}}</h3><p v-if="accountView==='menu'">管理当前账号的登录与验证方式</p><div class="security-menu" v-if="accountView==='menu'"><button @click="openAccountSection('password')"><i><v-icon name="key-round"/></i><span><b>修改密码</b><small>定期更换密码，保护账号安全</small></span><v-icon name="chevron-right"/></button><button @click="openAccountSection('phone')"><i><v-icon name="smartphone"/></i><span><b>绑定手机号</b><small>当前绑定尾号 {{state.meta.accounts[loginUser]?.phoneTail||'未绑定'}}</small></span><v-icon name="chevron-right"/></button></div><form v-else-if="accountView==='password'" class="account-fields" @submit.prevent="changePassword"><input required name="current" type="password" placeholder="当前密码"><input required name="next" type="password" minlength="6" placeholder="新密码（至少6位）"><input required name="confirmNext" type="password" minlength="6" placeholder="再次输入新密码"><button class="primary">保存新密码</button></form><template v-else><div v-if="accountStep==='form'" class="account-fields"><p class="bound-phone">已绑定手机号：尾号 {{state.meta.accounts[loginUser]?.phoneTail}}</p><input v-model="phoneInput" inputmode="tel" maxlength="11" placeholder="输入新的11位手机号"><button class="primary" @click="sendPhoneOtp">发送验证码</button></div><div v-else class="account-fields"><p>验证码已发送至 {{phoneInput}}</p><input v-model="otpInput" inputmode="numeric" maxlength="8" placeholder="短信验证码"><button class="primary" @click="verifyPhoneOtp">确认绑定</button></div></template></div></div>
+ <div class="overlay account-overlay" v-if="accountModal==='security'"><div class="account-dialog security-dialog"><button class="account-close" @click="accountModal=''"><v-icon name="x"/></button><button class="account-back" v-if="accountView!=='menu'" @click="accountView='menu';accountStep='form'"><v-icon name="chevron-left"/>返回</button><span class="account-icon"><v-icon :name="accountView==='password'?'key-round':accountView==='email'?'mail':'shield-check'"/></span><h3>{{accountView==='password'?'修改密码':accountView==='email'?'绑定邮箱':'账号与安全'}}</h3><p v-if="accountView==='menu'">管理当前账号的登录与验证方式</p><div class="security-menu" v-if="accountView==='menu'"><button @click="openAccountSection('password')"><i><v-icon name="key-round"/></i><span><b>修改密码</b><small>定期更换密码，保护账号安全</small></span><v-icon name="chevron-right"/></button><button @click="openAccountSection('email')"><i><v-icon name="mail"/></i><span><b>绑定邮箱</b><small>当前绑定 {{state.meta.accounts[loginUser]?.emailMasked||'未绑定'}}</small></span><v-icon name="chevron-right"/></button></div><form v-else-if="accountView==='password'" class="account-fields" @submit.prevent="changePassword"><input required name="current" type="password" placeholder="当前密码"><input required name="next" type="password" minlength="6" placeholder="新密码（至少6位）"><input required name="confirmNext" type="password" minlength="6" placeholder="再次输入新密码"><button class="primary">保存新密码</button></form><template v-else><div v-if="accountStep==='form'" class="account-fields"><p class="bound-phone">已绑定邮箱： {{state.meta.accounts[loginUser]?.emailMasked}}</p><input v-model="emailInput" inputmode="email" placeholder="输入新的邮箱地址"><button class="primary" @click="sendEmailOtp">发送验证码</button></div><div v-else class="account-fields"><p>验证码已发送至 {{emailInput}}</p><input v-model="otpInput" inputmode="numeric" maxlength="8" placeholder="邮箱验证码"><button class="primary" @click="verifyEmailOtp">确认绑定</button></div></template></div></div>
  <div class="overlay confirm-overlay" v-if="deleteConfirm"><div class="confirm-dialog"><span><v-icon name="trash-2"/></span><h3>{{deleteConfirm.title}}</h3><p>{{deleteConfirm.text}}</p><div><button @click="deleteConfirm=null">取消</button><button class="danger" @click="runDeleteConfirm">确认删除</button></div></div></div>
  <div class="overlay update-overlay" v-if="updateModal&&updateInfo"><div class="update-dialog"><div class="update-art"><v-icon name="sparkles"/><span>NEW</span></div><button class="close" title="稍后更新" @click="updateModal=false"><v-icon name="x"/></button><small>ONLY US UPDATE</small><h3>发现新版本 {{updateInfo.version}}</h3><p>本次更新</p><ul><li v-for="line in updateInfo.notes.split('；')" :key="line"><v-icon name="check-circle-2"/>{{line}}</li></ul><div><button class="later" @click="updateModal=false">暂不更新</button><button class="primary" @click="installUpdate"><v-icon name="download"/>立即更新</button></div></div></div>
  <div class="overlay quick-overlay" v-if="quickAddOpen" @mousedown.self="quickAddOpen=false"><div class="quick-sheet"><i/><h3>记录此刻</h3><div><button @click="chooseQuickAdd('photo')"><span><v-icon name="camera"/></span>上传照片</button><button @click="chooseQuickAdd('notes')"><span><v-icon name="message-circle"/></span>写悄悄话</button><button @click="chooseQuickAdd('day')"><span><v-icon name="calendar-heart"/></span>加纪念日</button><button @click="chooseQuickAdd('future')"><span><v-icon name="mail"/></span>写未来信</button></div><button class="sheet-cancel" @click="quickAddOpen=false">取消</button></div></div>
