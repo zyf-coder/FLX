@@ -1,6 +1,6 @@
 {
-  "version": "1.4.7",
-  "versionCode": 22,
+  "version": "1.4.8",
+  "versionCode": 23,
   "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android.apk",
-  "notes": "相册支持照片、视频和动态照片上传，显示上传进度并可直接播放。"
+  "notes": "优化视频上传预览和播放控件；登录背景仅展示相册照片；相册标题与日期左右对齐。"
 }
