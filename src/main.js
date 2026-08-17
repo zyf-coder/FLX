@@ -210,6 +210,20 @@ const cloud = {
     if (!response.ok) throw new Error(`Cloud write failed: ${response.status}`);
   },
 };
+const smsApi = async (action, phone, purpose, code = "") => {
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/sms-code`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_KEY,
+      Authorization: `Bearer ${SUPABASE_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ action, phone, purpose, code }),
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(result.error || "短信服务暂不可用");
+  return result;
+};
 const uploadStorageObject = async (path, blob, onProgress = () => {}) => {
   let lastError;
   for (let attempt = 1; attempt <= 2; attempt += 1) {
@@ -761,16 +775,15 @@ new Vue({
       )
         return this.showNotice("手机号与当前账号绑定信息不一致");
       try {
-        const response = await fetch(`${SUPABASE_URL}/auth/v1/otp`, {
-          method: "POST",
-          headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" },
-          body: JSON.stringify({ phone: `+86${phone}`, create_user: true }),
-        });
-        if (!response.ok) throw new Error(await response.text());
+        await smsApi(
+          "send",
+          phone,
+          this.accountModal === "security" ? "bind" : "reset"
+        );
         this.accountStep = "otp";
         this.showNotice("验证码已发送");
       } catch (error) {
-        this.showNotice("短信服务尚未配置或发送失败");
+        this.showNotice(error.message || "短信服务暂不可用");
         console.warn("发送短信验证码失败", error);
       }
     },
@@ -782,31 +795,22 @@ new Vue({
       if ((await sha256(phone)) !== account.phoneHash)
         return this.showNotice("手机号与所选账号不一致");
       try {
-        const response = await fetch(`${SUPABASE_URL}/auth/v1/otp`, {
-          method: "POST",
-          headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" },
-          body: JSON.stringify({ phone: `+86${phone}`, create_user: true }),
-        });
-        if (!response.ok) throw new Error(await response.text());
+        await smsApi("send", phone, "login");
         this.accountStep = "loginOtp";
         this.showNotice("验证码已发送");
       } catch (error) {
-        this.showNotice("短信服务暂不可用");
+        this.showNotice(error.message || "短信服务暂不可用");
         console.warn("登录验证码发送失败", error);
       }
     },
     async verifyLoginOtp() {
       try {
-        const response = await fetch(`${SUPABASE_URL}/auth/v1/verify`, {
-          method: "POST",
-          headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            phone: `+86${this.phoneInput.trim()}`,
-            token: this.otpInput.trim(),
-            type: "sms",
-          }),
-        });
-        if (!response.ok) throw new Error(await response.text());
+        await smsApi(
+          "verify",
+          this.phoneInput.trim(),
+          "login",
+          this.otpInput.trim()
+        );
         this.finishLogin();
       } catch (error) {
         this.showNotice("验证码错误或已失效");
@@ -816,16 +820,12 @@ new Vue({
       if (!/^\d{4,8}$/.test(this.otpInput.trim()))
         return this.showNotice("请输入短信验证码");
       try {
-        const response = await fetch(`${SUPABASE_URL}/auth/v1/verify`, {
-          method: "POST",
-          headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            phone: `+86${this.phoneInput.trim()}`,
-            token: this.otpInput.trim(),
-            type: "sms",
-          }),
-        });
-        if (!response.ok) throw new Error(await response.text());
+        await smsApi(
+          "verify",
+          this.phoneInput.trim(),
+          this.accountModal === "security" ? "bind" : "reset",
+          this.otpInput.trim()
+        );
         this.otpVerified = true;
         if (this.accountModal === "security") {
           this.state.meta.accounts = this.state.meta.accounts || {};
