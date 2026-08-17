@@ -610,6 +610,7 @@ new Vue({
     },
     loginPhotos() {
       const photos = this.state.photos
+        .filter((photo) => photo.type !== "video" && !/\.(mp4|mov|webm|m4v)$/i.test(photo.src || ""))
         .map((photo) => photo.src)
         .filter(Boolean);
       return photos.length ? photos : [PHOTO];
