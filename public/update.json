@@ -1,6 +1,6 @@
 {
-  "version": "1.4.1",
-  "versionCode": 16,
+  "version": "1.4.2",
+  "versionCode": 17,
   "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android.apk",
-  "notes": "同步小张同学和徐老师的生日纪念日，支持农历十月初十自动换算；重新设计透明登录界面和邮箱验证码输入框；版本号按同日、跨日、跨月规则递增。"
+  "notes": "进一步提高登录主题透明度，让背景人物和照片更清晰；修正流星方向，使轨迹从左上自然划向右下。"
 }
