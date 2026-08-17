@@ -1,6 +1,6 @@
 {
-  "version": "1.4.2",
-  "versionCode": 17,
+  "version": "1.4.3",
+  "versionCode": 18,
   "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android.apk",
-  "notes": "进一步提高登录主题透明度，让背景人物和照片更清晰；修正流星方向，使轨迹从左上自然划向右下。"
+  "notes": "取消登录面板的毛玻璃模糊，仅保留轻微透明暗层；背景照片保持原始清晰度，并单独增强文字可读性。"
 }
