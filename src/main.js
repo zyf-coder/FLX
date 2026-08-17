@@ -24,7 +24,7 @@ const UPDATE_URLS = [
   "https://onlyforus.online/update.json",
 ];
 const GITHUB_APK_URL = "https://github.com/zyf-coder/FLX/raw/refs/heads/main/public/downloads/OnlyUs-Android.apk";
-const WEB_VERSION = "1.4.12";
+const WEB_VERSION = "1.4.13";
 const BOUND_EMAIL_ACCOUNTS = {
   a: {
     emailHash:

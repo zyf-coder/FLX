@@ -1,6 +1,6 @@
 {
-  "version": "1.4.12",
-  "versionCode": 27,
+  "version": "1.4.13",
+  "versionCode": 28,
   "androidUrl": "https://github.com/zyf-coder/FLX/raw/refs/heads/main/public/downloads/OnlyUs-Android.apk",
-  "notes": "优化我的页面顶部布局；相册中的新旧视频加载后都会默认展示第一帧画面。"
+  "notes": "优化进入应用时的加载过渡效果，并重新调整首页底部说明与导航栏的间距。"
 }

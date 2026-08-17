@@ -1425,11 +1425,26 @@ footer svg {
   color: var(--pink);
 }
 .loading {
-  height: 100vh;
-  display: grid;
-  place-items: center;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   color: var(--pink);
-  gap: 10px;
+  gap: 16px;
+  background: radial-gradient(circle at center, #fff 0, #fff9fb 56%, #fff6f9 100%);
+  font-size: 15px;
+  letter-spacing: 1px;
+}
+.loading > svg {
+  width: 42px;
+  height: 42px;
+  filter: drop-shadow(0 8px 14px rgba(231, 92, 140, 0.22));
+  animation: loading-heart 1.15s ease-in-out infinite;
+}
+@keyframes loading-heart {
+  0%, 100% { transform: scale(0.92); opacity: 0.72; }
+  50% { transform: scale(1.08); opacity: 1; }
 }
 .mobile-menu {
   display: none;
@@ -3056,7 +3071,10 @@ footer svg {
     top: calc(64px + env(safe-area-inset-top));
   }
   main {
-    padding-bottom: calc(85px + env(safe-area-inset-bottom));
+    padding-bottom: 24px;
+  }
+  .app > footer {
+    padding: 8px 12px calc(118px + env(safe-area-inset-bottom));
   }
   .hero {
     height: 690px;
