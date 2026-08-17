@@ -1,6 +1,6 @@
 {
-  "version": "1.4.6",
-  "versionCode": 21,
+  "version": "1.4.7",
+  "versionCode": 22,
   "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android.apk",
-  "notes": "修正 Android 系统日期选择器的绿色主题，统一为 Only Us 暖粉色。"
+  "notes": "相册支持照片、视频和动态照片上传，显示上传进度并可直接播放。"
 }
