@@ -23,7 +23,7 @@ const UPDATE_URLS = [
   "https://onlyforus.online/update.json",
   "https://raw.githubusercontent.com/zyf-coder/FLX/main/public/update.json",
 ];
-const WEB_VERSION = "1.4.9";
+const WEB_VERSION = "1.4.10";
 const BOUND_EMAIL_ACCOUNTS = {
   a: {
     emailHash:
@@ -173,6 +173,23 @@ const compressPhoto = async (file, maxSize = 2048) => {
   canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
   return canvasBlob(canvas);
 };
+const videoPosterBlob = (file) => new Promise((resolve, reject) => {
+  const video = document.createElement("video");
+  const url = URL.createObjectURL(file);
+  video.muted = true; video.playsInline = true; video.preload = "metadata";
+  video.onloadeddata = () => { video.currentTime = Math.min(0.05, video.duration / 2 || 0.05); };
+  video.onseeked = async () => {
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth || 640; canvas.height = video.videoHeight || 360;
+      canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+      resolve(await canvasBlob(canvas));
+    } catch (error) { reject(error); }
+    URL.revokeObjectURL(url);
+  };
+  video.onerror = () => { URL.revokeObjectURL(url); reject(new Error("视频封面生成失败")); };
+  video.src = url;
+});
 const cropAvatar = async (file) => {
   const image = await imageFromFile(file);
   const side = Math.min(image.naturalWidth, image.naturalHeight);
@@ -562,6 +579,7 @@ new Vue({
     uploadQueue: [],
     photoEditing: null,
     photoDraft: null,
+    replaceTarget: null,
     dayCalendar: "solar",
     editingDay: null,
     loginPhotoIndex: 0,
@@ -620,6 +638,11 @@ new Vue({
     },
     loginPhoto() {
       return this.loginPhotos[this.loginPhotoIndex % this.loginPhotos.length];
+    },
+    sortedPhotos() {
+      return [...this.state.photos].sort(
+        (a, b) => (Number(a.uploadedAt) || 0) - (Number(b.uploadedAt) || 0)
+      );
     },
   },
   watch: {
@@ -1324,11 +1347,20 @@ new Vue({
           await uploadStorageObject(storagePath, uploadBlob, (progress) => {
             pending.progress = progress;
           });
+          let poster = "";
+          if (isVideo) {
+            try {
+              const posterPath = `${COUPLE_ID}/${id}-poster.jpg`;
+              await uploadStorageObject(posterPath, await videoPosterBlob(file));
+              poster = `${SUPABASE_URL}/storage/v1/object/public/couple-photos/${posterPath}`;
+            } catch (error) { console.warn("视频封面生成失败", error); }
+          }
           this.state.photos.push({
             id,
             src: `${SUPABASE_URL}/storage/v1/object/public/couple-photos/${storagePath}`,
             storagePath,
             type: isVideo ? "video" : "image",
+            poster,
             title: photoTitle,
             date: new Date().toISOString().slice(0, 10),
             uploadedAt: Date.now(),
@@ -1373,10 +1405,53 @@ new Vue({
           }
         );
       }
+      if (photo.poster) {
+        const posterPath = photo.poster.split("/couple-photos/")[1];
+        if (posterPath)
+          await fetch(
+            `${SUPABASE_URL}/storage/v1/object/couple-photos/${posterPath}`,
+            { method: "DELETE", headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, "x-couple-id": COUPLE_ID } }
+          );
+      }
       this.state.photos = this.state.photos.filter(
         (item) => item.id !== photo.id
       );
       this.showNotice("照片已删除");
+    },
+    replacePhoto(photo) {
+      this.replaceTarget = photo;
+      this.$refs.replaceFile.click();
+    },
+    async replacePhotoFile(e) {
+      const file = e.target.files?.[0];
+      const target = this.replaceTarget;
+      if (!file || !target) return;
+      try {
+        const isVideo = file.type.startsWith("video/");
+        const blob = isVideo ? file : await compressPhoto(file);
+        const id = createId();
+        const ext = isVideo ? (file.name.split(".").pop() || "mp4").toLowerCase() : "jpg";
+        const path = COUPLE_ID + "/" + id + "." + ext;
+        await uploadStorageObject(path, blob);
+        let poster = "";
+        if (isVideo) {
+          const posterPath = COUPLE_ID + "/" + id + "-poster.jpg";
+          await uploadStorageObject(posterPath, await videoPosterBlob(file));
+          poster = SUPABASE_URL + "/storage/v1/object/public/couple-photos/" + posterPath;
+        }
+        const oldPath = target.storagePath;
+        this.$set(target, "src", SUPABASE_URL + "/storage/v1/object/public/couple-photos/" + path);
+        this.$set(target, "storagePath", path);
+        this.$set(target, "type", isVideo ? "video" : "image");
+        this.$set(target, "poster", poster);
+        this.$set(target, "uploadedAt", Date.now());
+        if (oldPath) await fetch(SUPABASE_URL + "/storage/v1/object/couple-photos/" + oldPath, { method: "DELETE", headers: { apikey: SUPABASE_KEY, Authorization: "Bearer " + SUPABASE_KEY, "x-couple-id": COUPLE_ID } });
+        this.showNotice("相册媒体已替换");
+      } catch (error) {
+        this.showNotice(error.message || "替换失败", "error");
+      }
+      this.replaceTarget = null;
+      e.target.value = "";
     },
     editPhoto(photo) {
       this.photoEditing = photo;
@@ -1526,7 +1601,7 @@ new Vue({
    <section class="home-grid"><div class="panel"><div class="title"><span><v-icon name="clock-3"/></span><div><b>爱情时间线</b><small>每个瞬间，都值得被记住</small></div><button @click="go('story')">查看全部 <v-icon name="chevron-right"/></button></div><love-timeline :items="state.stories.slice(-3)"/></div><div class="panel"><div class="title"><span><v-icon name="message-circle"/></span><div><b>悄悄话</b><small>只给你看的甜蜜留言</small></div><button @click="go('notes')">查看全部 <v-icon name="chevron-right"/></button></div><love-note v-for="n in latestNotes" :key="n.id" :note="n" :profile="state.profile"/></div></section>
    <section class="surprise"><v-icon name="gift"/><div><b>今日份的小惊喜</b><p>点击开启属于你们的浪漫时刻</p></div><button @click="rain">开启惊喜 <v-icon name="sparkles"/></button></section>
   </template>
-  <section class="page" v-if="tab==='album'"><div class="page-head"><div><h2>恋爱相册</h2><p>照片、视频和动态照片都可以收藏。</p></div><button class="primary" @click="$refs.file.click()"><v-icon name="camera"/>上传照片 / 视频</button></div><input hidden multiple accept="image/*,video/*,.heic,.heif" type="file" ref="file" @change="photos"><div class="gallery"><figure class="upload-preview" :class="{failed:item.failed}" v-for="item in uploadQueue" :key="'upload-'+item.id"><video v-if="item.type==='video'" :src="item.preview" muted playsinline controls/><img v-else :src="item.preview"><div class="upload-progress"><b>{{item.progress}}%</b><span>{{item.status}}</span><i><em :style="{width:item.progress+'%'}"/></i></div></figure><figure class="photo-memory" v-for="p in state.photos" :key="p.id"><video v-if="p.type==='video' || (!p.type && /\.(mp4|mov|webm|m4v)$/i.test(p.src))" :src="p.src" controls playsinline preload="metadata"/><img v-else :src="p.src"><figcaption v-if="p.title||p.description||p.date"><div><b v-if="p.title">{{p.title}}</b><span v-if="p.date">{{p.date}}</span></div><p v-if="p.description">{{p.description}}</p></figcaption><div class="photo-actions"><button title="编辑纪念文字" @click="editPhoto(p)"><v-icon name="pencil"/></button><button title="删除媒体" @click="removePhoto(p)"><v-icon name="trash-2"/></button></div></figure></div></section>
+  <section class="page" v-if="tab==='album'"><div class="page-head"><div><h2>恋爱相册</h2><p>照片、视频和动态照片都可以收藏。</p></div><button class="primary" @click="$refs.file.click()"><v-icon name="camera"/>上传照片 / 视频</button></div><input hidden multiple accept="image/*,video/*,.heic,.heif" type="file" ref="file" @change="photos"><input hidden accept="image/*,video/*,.heic,.heif" type="file" ref="replaceFile" @change="replacePhotoFile"><div class="gallery"><figure class="upload-preview" :class="{failed:item.failed}" v-for="item in uploadQueue" :key="'upload-'+item.id"><video v-if="item.type==='video'" :src="item.preview" muted playsinline autoplay loop/><img v-else :src="item.preview"><div class="upload-progress"><b>{{item.progress}}%</b><span>{{item.status}}</span><i><em :style="{width:item.progress+'%'}"/></i></div></figure><figure class="photo-memory" v-for="p in sortedPhotos" :key="p.id"><video v-if="p.type==='video' || (!p.type && /\.(mp4|mov|webm|m4v)$/i.test(p.src))" :src="p.src" :poster="p.poster" controls playsinline preload="metadata"/><img v-else :src="p.src"><figcaption v-if="p.title||p.description||p.date"><div><b v-if="p.title">{{p.title}}</b><span v-if="p.date">{{p.date}}</span></div><p v-if="p.description">{{p.description}}</p></figcaption><div class="photo-actions"><button title="编辑纪念文字" @click="editPhoto(p)"><v-icon name="pencil"/></button><button title="替换媒体" @click="replacePhoto(p)"><v-icon name="refresh-cw"/></button><button title="删除媒体" @click="removePhoto(p)"><v-icon name="trash-2"/></button></div></figure></div></section>
   <section class="page list-page" v-if="tab==='list'"><div class="page-head"><div><h2>恋爱清单</h2><p>想一起做的事，一件件变成共同回忆。</p></div><span class="list-progress">已完成 {{doneCount}} / {{state.todos.length}}</span></div><form class="addbar" @submit.prevent="addTodo"><v-icon name="sparkles"/><input ref="todo" placeholder="写下下一件想一起做的事"><button title="添加到清单"><v-icon name="plus"/><span>添加</span></button></form><div class="todo"><label v-for="t in state.todos" :key="t.id" :class="{completed:t.done}"><input type="checkbox" v-model="t.done"><i><v-icon name="check"/></i><span>{{t.text}}</span><button type="button" title="删除" @click.prevent="confirmDelete('todos',t.id,t.text)"><v-icon name="trash-2"/></button></label></div></section>
   <anniversary-page v-if="tab==='days'" :items="state.days" @add="modal='day'" @remove="removeAnniversary" @calendar="addToPhoneCalendar"/>
   <section class="page" v-if="tab==='notes'"><div class="page-head"><div><h2>悄悄话</h2><p>忙碌的日子里，也别忘了说爱你。</p></div></div><form class="noteform" @submit.prevent="addNote"><textarea ref="note" maxlength="120" placeholder="写一句只给 TA 看的话…"/><button><v-icon name="send"/>发送留言</button></form><love-note v-for="n in state.notes" :key="n.id" :note="n" :profile="state.profile"/></section>
