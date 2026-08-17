@@ -19,8 +19,8 @@ const LOCAL_BACKUP_KEY = "only-us-backup";
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const COUPLE_ID = import.meta.env.VITE_COUPLE_ID;
-const UPDATE_URL = "https://zyf-coder.github.io/FLX/update.json";
-const WEB_VERSION = "1.4.8";
+const UPDATE_URL = "https://onlyforus.online/update.json";
+const WEB_VERSION = "1.4.9";
 const BOUND_EMAIL_ACCOUNTS = {
   a: {
     emailHash:
@@ -234,7 +234,7 @@ const emailOtpApi = async (action, email, token = "") => {
   const endpoint = action === "send" ? "otp" : "verify";
   const body =
     action === "send"
-      ? { email, create_user: true }
+      ? { email, create_user: true, email_redirect_to: "https://onlyforus.online/" }
       : { email, token, type: "email" };
   const response = await fetch(`${SUPABASE_URL}/auth/v1/${endpoint}`, {
     method: "POST",
