@@ -1,6 +1,6 @@
 {
-  "version": "1.2.3",
-  "versionCode": 13,
+  "version": "1.3.0",
+  "versionCode": 14,
   "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android.apk",
-  "notes": "缩小手机端版本更新弹框的宽度和高度，精简顶部装饰及内容间距；更新内容较多时仅内容区域滚动，操作按钮保持可见；继续优化顶部操作提示。"
+  "notes": "账号安全拆分为修改密码和绑定手机号两个独立页面；为小张同学和徐老师绑定指定手机号，增加手机号验证码登录；所有删除确认改为中文应用内弹框；优化账号安全样式并减少“我的”页面底部空白。"
 }
