@@ -1,6 +1,6 @@
 {
-  "version": "1.3.0",
-  "versionCode": 14,
+  "version": "1.4.0",
+  "versionCode": 15,
   "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android.apk",
-  "notes": "账号安全拆分为修改密码和绑定手机号两个独立页面；为小张同学和徐老师绑定指定手机号，增加手机号验证码登录；所有删除确认改为中文应用内弹框；优化账号安全样式并减少“我的”页面底部空白。"
+  "notes": "登录方式调整为密码登录和邮箱验证码登录；为小张同学和徐老师绑定指定 QQ 邮箱；账号安全中的手机号功能替换为邮箱绑定与更换；移除需要企业资质的短信供应商流程。"
 }
