@@ -1,6 +1,6 @@
 {
-  "version": "1.4.9",
-  "versionCode": 24,
+  "version": "1.4.10",
+  "versionCode": 25,
   "androidUrl": "https://onlyforus.online/downloads/OnlyUs-Android.apk",
-  "notes": "启用 onlyforus.online 正式域名，统一网页访问、登录回调和 APP 更新下载地址。"
+  "notes": "优化移动端时间线布局；视频使用第一帧封面；相册按上传时间排序并支持替换媒体。"
 }

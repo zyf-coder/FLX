@@ -1563,7 +1563,20 @@ footer svg {
     grid-template-columns: 1fr;
   }
   .timeline div {
-    grid-template-columns: 75px auto;
+    grid-template-columns: 92px minmax(0, 1fr);
+    row-gap: 6px;
+  }
+  .timeline p {
+    grid-column: 1 / -1;
+    margin: 0 0 16px;
+    line-height: 1.65;
+  }
+  .photo-actions {
+    gap: 4px;
+  }
+  .photo-actions button {
+    width: 30px;
+    height: 30px;
   }
   .backup {
     flex-wrap: wrap;
