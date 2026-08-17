@@ -3,7 +3,9 @@ import { icons } from "lucide";
 import { Capacitor } from "@capacitor/core";
 import { App as NativeApp } from "@capacitor/app";
 import { Browser } from "@capacitor/browser";
+import { Directory, Encoding, Filesystem } from "@capacitor/filesystem";
 import { LocalNotifications } from "@capacitor/local-notifications";
+import { Share } from "@capacitor/share";
 import { CapacitorCalendar } from "@ebarooni/capacitor-calendar";
 import "./style.css";
 
@@ -16,20 +18,29 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const COUPLE_ID = import.meta.env.VITE_COUPLE_ID;
 const UPDATE_URL = "https://zyf-coder.github.io/FLX/update.json";
-const WEB_VERSION = "20260816.4";
+const WEB_VERSION = "1.2.0";
+const AUTH_KEY = "only-us-auth";
+const SESSION_KEY = "only-us-session";
 const REMEMBERED_PASSWORDS_KEY = "only-us-remembered-passwords";
 const rememberedPasswords = (() => {
   try {
-    return JSON.parse(localStorage.getItem(REMEMBERED_PASSWORDS_KEY) || "{}") || {};
+    return (
+      JSON.parse(localStorage.getItem(REMEMBERED_PASSWORDS_KEY) || "{}") || {}
+    );
   } catch (error) {
     return {};
   }
 })();
+const lastLoginUser = localStorage.getItem("only-us-user") || "a";
 const APP_PASSCODES = {
   a: import.meta.env.VITE_APP_PASSCODE_A || "zhangyafei",
   b: import.meta.env.VITE_APP_PASSCODE_B || "xudan",
 };
 const isNewerVersion = (latest, current) => {
+  const latestIsDateVersion = /^\d{8}\.\d+$/.test(String(latest));
+  const currentIsDateVersion = /^\d{8}\.\d+$/.test(String(current));
+  if (currentIsDateVersion && !latestIsDateVersion) return true;
+  if (!currentIsDateVersion && latestIsDateVersion) return false;
   const left = String(latest).split(".").map(Number);
   const right = String(current).split(".").map(Number);
   for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
@@ -82,6 +93,62 @@ const defaults = {
   letters: [],
 };
 const clone = (value) => JSON.parse(JSON.stringify(value));
+const createId = () =>
+  crypto.randomUUID?.() ||
+  `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+const sha256 = async (value) => {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(digest)]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+};
+const imageFromFile = (file) =>
+  new Promise((resolve, reject) => {
+    const image = new Image();
+    const url = URL.createObjectURL(file);
+    image.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(image);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("图片读取失败"));
+    };
+    image.src = url;
+  });
+const canvasBlob = (canvas, type = "image/jpeg", quality = 0.84) =>
+  new Promise((resolve, reject) =>
+    canvas.toBlob(
+      (blob) => (blob ? resolve(blob) : reject(new Error("图片压缩失败"))),
+      type,
+      quality
+    )
+  );
+const compressPhoto = async (file, maxSize = 2048) => {
+  if (!file.type.startsWith("image/") || file.type === "image/gif") return file;
+  const image = await imageFromFile(file);
+  const scale = Math.min(
+    1,
+    maxSize / Math.max(image.naturalWidth, image.naturalHeight)
+  );
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+  canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+  canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
+  return canvasBlob(canvas);
+};
+const cropAvatar = async (file) => {
+  const image = await imageFromFile(file);
+  const side = Math.min(image.naturalWidth, image.naturalHeight);
+  const sx = (image.naturalWidth - side) / 2;
+  const sy = (image.naturalHeight - side) / 2;
+  const canvas = document.createElement("canvas");
+  canvas.width = 512;
+  canvas.height = 512;
+  canvas.getContext("2d").drawImage(image, sx, sy, side, side, 0, 0, 512, 512);
+  return canvas.toDataURL("image/jpeg", 0.84);
+};
 const localBackup = {
   get() {
     try {
@@ -130,6 +197,44 @@ const cloud = {
     });
     if (!response.ok) throw new Error(`Cloud write failed: ${response.status}`);
   },
+};
+const uploadStorageObject = async (path, blob, onProgress = () => {}) => {
+  let lastError;
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open(
+          "POST",
+          `${SUPABASE_URL}/storage/v1/object/couple-photos/${path}`
+        );
+        xhr.timeout = 45000;
+        xhr.setRequestHeader("apikey", SUPABASE_KEY);
+        xhr.setRequestHeader("Authorization", `Bearer ${SUPABASE_KEY}`);
+        xhr.setRequestHeader("x-couple-id", COUPLE_ID);
+        xhr.setRequestHeader("Content-Type", blob.type || "image/jpeg");
+        xhr.setRequestHeader("x-upsert", "false");
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable)
+            onProgress(
+              Math.min(99, Math.round((event.loaded / event.total) * 100))
+            );
+        };
+        xhr.onload = () =>
+          xhr.status >= 200 && xhr.status < 300
+            ? resolve()
+            : reject(new Error(`上传失败：${xhr.status}`));
+        xhr.onerror = () => reject(new Error("网络连接中断"));
+        xhr.ontimeout = () => reject(new Error("上传超时"));
+        xhr.send(blob);
+      });
+      onProgress(100);
+      return;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError || new Error("照片上传失败");
 };
 const indexedDb = {
   get: () =>
@@ -231,11 +336,11 @@ Vue.component("v-icon", {
   },
 });
 Vue.component("love-timeline", {
-  props: ["items"],
-  template: `<div class="timeline"><article v-for="(x,i) in items" :key="x.id"><i><v-icon v-if="i===items.length-1" name="heart" fill="currentColor"/><span v-else/></i><div><time>{{x.date}}</time><b>{{x.title}}</b><p>{{x.text}}</p></div></article></div>`,
+  props: ["items", "editable"],
+  template: `<div class="timeline"><article v-for="(x,i) in items" :key="x.id"><i><v-icon v-if="i===items.length-1" name="heart" fill="currentColor"/><span v-else/></i><div><time>{{x.date}}</time><b>{{x.title}}</b><p>{{x.text}}</p><button v-if="editable" class="timeline-delete" title="删除这条故事" @click="$emit('remove',x)"><v-icon name="trash-2"/>删除</button></div></article></div>`,
 });
 Vue.component("love-note", {
-  props: ["note"],
+  props: ["note", "profile"],
   data: () => ({ now: Date.now(), clock: null }),
   mounted() {
     this.clock = setInterval(() => (this.now = Date.now()), 30000);
@@ -251,8 +356,14 @@ Vue.component("love-note", {
       this.now;
       return formatRelativeTime(value);
     },
+    avatar() {
+      if (!this.profile) return "";
+      return this.note.author === this.profile.b
+        ? this.profile.avatarB
+        : this.profile.avatarA;
+    },
   },
-  template: `<article class="note"><div>{{note.author[0]}}</div><p><b>{{note.author}}</b><span>{{note.text}}</span><small>{{displayTime(note.time)}}</small></p></article>`,
+  template: `<article class="note"><div><img v-if="avatar()" :src="avatar()" :alt="note.author"><span v-else>{{note.author[0]}}</span></div><p><b>{{note.author}}</b><span>{{note.text}}</span><small>{{displayTime(note.time)}}</small></p></article>`,
 });
 
 Vue.component("anniversary-page", {
@@ -347,11 +458,21 @@ new Vue({
     appNotice: "",
     profileEditing: false,
     profileDraft: null,
-    authenticated: sessionStorage.getItem("only-us-auth") === "yes",
-    loginUser: "a",
-    loginPasscode: rememberedPasswords.a || "",
-    rememberPassword: Boolean(rememberedPasswords.a),
+    authenticated: localStorage.getItem(AUTH_KEY) === "yes",
+    sessionId: localStorage.getItem(SESSION_KEY) || "",
+    loginUser: lastLoginUser,
+    loginPasscode: rememberedPasswords[lastLoginUser] || "",
+    rememberPassword: Boolean(rememberedPasswords[lastLoginUser]),
     loginError: "",
+    logoutConfirm: false,
+    accountModal: "",
+    accountStep: "form",
+    phoneInput: "",
+    otpInput: "",
+    otpVerified: false,
+    uploadQueue: [],
+    photoEditing: null,
+    photoDraft: null,
     loginPhotoIndex: 0,
     loginPhotoTimer: null,
     timeHours: Array.from({ length: 24 }, (_, index) =>
@@ -450,11 +571,15 @@ new Vue({
     this.state.profile.avatarB = this.state.profile.avatarB || "";
     this.state.letters = this.state.letters || [];
     this.state.meta = this.state.meta || {};
+    this.state.meta.sessions = this.state.meta.sessions || {};
+    this.state.meta.accounts = this.state.meta.accounts || {};
     if (!this.state.meta.todoDefaultsCleared) {
       this.state.todos.forEach((todo) => (todo.done = false));
       this.state.meta.todoDefaultsCleared = true;
     }
-    this.state.stories = JSON.parse(JSON.stringify(defaults.stories));
+    this.state.stories = Array.isArray(this.state.stories)
+      ? this.state.stories
+      : clone(defaults.stories);
     this.ready = true;
     this.loginPhotoTimer = setInterval(() => {
       this.loginPhotoIndex =
@@ -462,6 +587,16 @@ new Vue({
     }, 6500);
     if (migratedPhotoPath) this.persistState(this.state, true);
     this.lastCloudVersion = this.state._updatedAt || 0;
+    if (this.authenticated) {
+      const remoteSession = this.state.meta.sessions[this.loginUser];
+      if (this.sessionId && remoteSession && remoteSession !== this.sessionId) {
+        this.forceLogout("账号已在其他设备登录，本机已退出");
+      } else {
+        this.sessionId = this.sessionId || createId();
+        localStorage.setItem(SESSION_KEY, this.sessionId);
+        this.$set(this.state.meta.sessions, this.loginUser, this.sessionId);
+      }
+    }
     if (cloud.enabled) {
       this.cloudSync = "云端数据已同步";
       this.cloudPoller = setInterval(() => this.pullCloudState(), 5000);
@@ -480,10 +615,17 @@ new Vue({
     clearInterval(this.loginPhotoTimer);
   },
   methods: {
-    login() {
+    async login() {
       const passcode = this.loginPasscode;
-      if (passcode !== APP_PASSCODES[this.loginUser]) {
-        this.loginError = `${this.loginUser === "a" ? "小张同学" : "徐老师"}的密码不正确，请重新输入`;
+      const passwordHash =
+        this.state.meta?.accounts?.[this.loginUser]?.passwordHash;
+      const valid = passwordHash
+        ? (await sha256(passcode)) === passwordHash
+        : passcode === APP_PASSCODES[this.loginUser];
+      if (!valid) {
+        this.loginError = `${
+          this.loginUser === "a" ? "小张同学" : "徐老师"
+        }的密码不正确，请重新输入`;
         this.loginPasscode = "";
         return;
       }
@@ -498,8 +640,13 @@ new Vue({
       );
       this.authenticated = true;
       this.loginError = "";
-      sessionStorage.setItem("only-us-auth", "yes");
-      sessionStorage.setItem("only-us-user", this.loginUser);
+      this.sessionId = createId();
+      localStorage.setItem(AUTH_KEY, "yes");
+      localStorage.setItem("only-us-user", this.loginUser);
+      localStorage.setItem(SESSION_KEY, this.sessionId);
+      this.state.meta = this.state.meta || {};
+      this.state.meta.sessions = this.state.meta.sessions || {};
+      this.$set(this.state.meta.sessions, this.loginUser, this.sessionId);
       this.showNotice("登录成功");
     },
     selectLoginUser(user) {
@@ -509,14 +656,141 @@ new Vue({
       this.rememberPassword = Boolean(rememberedPasswords[user]);
     },
     logout() {
-      if (!confirm("确定要退出当前账号吗？")) return;
-      sessionStorage.removeItem("only-us-auth");
-      sessionStorage.removeItem("only-us-user");
+      this.logoutConfirm = true;
+    },
+    confirmLogout() {
+      this.logoutConfirm = false;
+      if (this.state.meta?.sessions?.[this.loginUser] === this.sessionId)
+        this.$set(this.state.meta.sessions, this.loginUser, null);
+      this.forceLogout("");
+    },
+    forceLogout(message) {
+      localStorage.removeItem(AUTH_KEY);
+      localStorage.removeItem("only-us-user");
+      localStorage.removeItem(SESSION_KEY);
+      this.sessionId = "";
       this.profileEditing = false;
       this.profileDraft = null;
-      this.loginError = "";
+      this.loginError = message;
       this.authenticated = false;
       this.go("home");
+    },
+    openAccountSecurity() {
+      this.accountModal = "security";
+      this.accountStep = "form";
+      this.phoneInput = "";
+      this.otpInput = "";
+      this.otpVerified = false;
+    },
+    openForgotPassword() {
+      this.accountModal = "forgot";
+      this.accountStep = "phone";
+      this.phoneInput = "";
+      this.otpInput = "";
+      this.otpVerified = false;
+    },
+    async changePassword(event) {
+      const form = new FormData(event.target);
+      const current = String(form.get("current") || "");
+      const next = String(form.get("next") || "");
+      const confirmNext = String(form.get("confirmNext") || "");
+      const account = this.state.meta?.accounts?.[this.loginUser] || {};
+      const currentValid = account.passwordHash
+        ? (await sha256(current)) === account.passwordHash
+        : current === APP_PASSCODES[this.loginUser];
+      if (!currentValid) return this.showNotice("当前密码不正确");
+      if (next.length < 6) return this.showNotice("新密码至少需要6位");
+      if (next !== confirmNext) return this.showNotice("两次新密码输入不一致");
+      this.state.meta.accounts = this.state.meta.accounts || {};
+      this.$set(this.state.meta.accounts, this.loginUser, {
+        ...account,
+        passwordHash: await sha256(next),
+      });
+      rememberedPasswords[this.loginUser] = next;
+      localStorage.setItem(
+        REMEMBERED_PASSWORDS_KEY,
+        JSON.stringify(rememberedPasswords)
+      );
+      this.loginPasscode = next;
+      this.accountModal = "";
+      this.showNotice("密码修改成功并已同步到云端");
+    },
+    async sendPhoneOtp() {
+      const phone = this.phoneInput.trim();
+      if (!/^1\d{10}$/.test(phone))
+        return this.showNotice("请输入正确的11位手机号");
+      const account = this.state.meta?.accounts?.[this.loginUser] || {};
+      const phoneHash = await sha256(phone);
+      if (
+        this.accountModal === "forgot" &&
+        (!account.phoneHash || phoneHash !== account.phoneHash)
+      )
+        return this.showNotice("手机号与当前账号绑定信息不一致");
+      try {
+        const response = await fetch(`${SUPABASE_URL}/auth/v1/otp`, {
+          method: "POST",
+          headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" },
+          body: JSON.stringify({ phone: `+86${phone}`, create_user: true }),
+        });
+        if (!response.ok) throw new Error(await response.text());
+        this.accountStep = "otp";
+        this.showNotice("验证码已发送");
+      } catch (error) {
+        this.showNotice("短信服务尚未配置或发送失败");
+        console.warn("发送短信验证码失败", error);
+      }
+    },
+    async verifyPhoneOtp() {
+      if (!/^\d{4,8}$/.test(this.otpInput.trim()))
+        return this.showNotice("请输入短信验证码");
+      try {
+        const response = await fetch(`${SUPABASE_URL}/auth/v1/verify`, {
+          method: "POST",
+          headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            phone: `+86${this.phoneInput.trim()}`,
+            token: this.otpInput.trim(),
+            type: "sms",
+          }),
+        });
+        if (!response.ok) throw new Error(await response.text());
+        this.otpVerified = true;
+        if (this.accountModal === "security") {
+          this.state.meta.accounts = this.state.meta.accounts || {};
+          this.$set(this.state.meta.accounts, this.loginUser, {
+            ...(this.state.meta.accounts[this.loginUser] || {}),
+            phoneHash: await sha256(this.phoneInput.trim()),
+            phoneTail: this.phoneInput.trim().slice(-4),
+          });
+          this.accountModal = "";
+          this.showNotice("手机号绑定成功");
+        } else {
+          this.accountStep = "reset";
+        }
+      } catch (error) {
+        this.showNotice("验证码错误或已失效");
+      }
+    },
+    async resetForgottenPassword(event) {
+      if (!this.otpVerified) return;
+      const form = new FormData(event.target);
+      const next = String(form.get("next") || "");
+      const confirmNext = String(form.get("confirmNext") || "");
+      if (next.length < 6) return this.showNotice("新密码至少需要6位");
+      if (next !== confirmNext) return this.showNotice("两次新密码输入不一致");
+      this.state.meta.accounts = this.state.meta.accounts || {};
+      this.$set(this.state.meta.accounts, this.loginUser, {
+        ...(this.state.meta.accounts[this.loginUser] || {}),
+        passwordHash: await sha256(next),
+      });
+      rememberedPasswords[this.loginUser] = next;
+      localStorage.setItem(
+        REMEMBERED_PASSWORDS_KEY,
+        JSON.stringify(rememberedPasswords)
+      );
+      this.loginPasscode = next;
+      this.accountModal = "";
+      this.showNotice("密码已重置，请登录");
     },
     async persistState(value, silent = false) {
       this.cloudSync = "正在保存到云端";
@@ -535,6 +809,16 @@ new Vue({
     async pullCloudState() {
       try {
         const remote = await cloud.get();
+        const remoteSession = remote?.meta?.sessions?.[this.loginUser];
+        if (
+          this.authenticated &&
+          this.sessionId &&
+          remoteSession &&
+          remoteSession !== this.sessionId
+        ) {
+          this.forceLogout("账号已在其他设备登录，本机已退出");
+          return;
+        }
         if (remote && (remote._updatedAt || 0) > this.lastCloudVersion) {
           this.lastCloudVersion = remote._updatedAt || 0;
           this.applyingRemote = true;
@@ -662,15 +946,20 @@ new Vue({
         this.go(target);
       }
     },
-    changeAvatar(key, event) {
+    async changeAvatar(key, event) {
       const file = event.target.files?.[0];
       if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        this.$set(this.state.profile, key, reader.result);
-      };
-      reader.readAsDataURL(file);
-      event.target.value = "";
+      this.showNotice("正在处理头像");
+      try {
+        const avatar = await cropAvatar(file);
+        this.$set(this.state.profile, key, avatar);
+        this.showNotice("头像已更新并同步到云端");
+      } catch (error) {
+        this.showNotice("头像处理失败，请换一张照片重试");
+        console.warn("头像处理失败", error);
+      } finally {
+        event.target.value = "";
+      }
     },
     startProfileEdit() {
       this.profileDraft = {
@@ -788,36 +1077,49 @@ new Vue({
     },
     async photos(e) {
       const files = [...e.target.files];
-      for (const file of files) {
-        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
-        const storagePath = `${COUPLE_ID}/${Date.now()}-${safeName}`;
-        this.showNotice("照片正在上传到云端");
-        const response = await fetch(
-          `${SUPABASE_URL}/storage/v1/object/couple-photos/${storagePath}`,
-          {
-            method: "POST",
-            headers: {
-              apikey: SUPABASE_KEY,
-              "x-couple-id": COUPLE_ID,
-              "Content-Type": file.type || "application/octet-stream",
-            },
-            body: file,
-          }
-        );
-        if (!response.ok) {
-          this.showNotice("照片上传失败，请重试");
-          continue;
-        }
-        this.state.photos.push({
-          id: Date.now() + Math.random(),
-          src: `${SUPABASE_URL}/storage/v1/object/public/couple-photos/${storagePath}`,
-          storagePath,
+      let completed = 0;
+      for (const [index, file] of files.entries()) {
+        const queueId = createId();
+        const preview = URL.createObjectURL(file);
+        const pending = {
+          id: queueId,
+          preview,
           title: file.name.replace(/\.[^.]+$/, ""),
-          date: new Date().toISOString().slice(0, 10),
-          uploadedAt: Date.now(),
-        });
-        this.showNotice("照片已保存到云端");
+          progress: 0,
+          status: "正在处理",
+        };
+        this.uploadQueue.push(pending);
+        try {
+          const compressed = await compressPhoto(file);
+          const id = createId();
+          const storagePath = `${COUPLE_ID}/${id}.jpg`;
+          pending.status = "正在上传";
+          await uploadStorageObject(storagePath, compressed, (progress) => {
+            pending.progress = progress;
+          });
+          this.state.photos.push({
+            id,
+            src: `${SUPABASE_URL}/storage/v1/object/public/couple-photos/${storagePath}`,
+            storagePath,
+            title: file.name.replace(/\.[^.]+$/, ""),
+            date: new Date().toISOString().slice(0, 10),
+            uploadedAt: Date.now(),
+          });
+          completed += 1;
+          pending.status = "上传成功";
+          await new Promise((resolve) => setTimeout(resolve, 450));
+          URL.revokeObjectURL(preview);
+          this.uploadQueue = this.uploadQueue.filter(
+            (item) => item.id !== queueId
+          );
+        } catch (error) {
+          console.warn("照片上传失败", error);
+          pending.status = "上传失败，请重新选择";
+          pending.failed = true;
+          this.showNotice(`第 ${index + 1} 张上传失败，请重试`);
+        }
       }
+      if (completed) this.showNotice(`${completed} 张照片已保存到云端`);
       e.target.value = "";
     },
     async removePhoto(photo) {
@@ -827,13 +1129,38 @@ new Vue({
           `${SUPABASE_URL}/storage/v1/object/couple-photos/${photo.storagePath}`,
           {
             method: "DELETE",
-            headers: { apikey: SUPABASE_KEY, "x-couple-id": COUPLE_ID },
+            headers: {
+              apikey: SUPABASE_KEY,
+              Authorization: `Bearer ${SUPABASE_KEY}`,
+              "x-couple-id": COUPLE_ID,
+            },
           }
         );
       }
       this.state.photos = this.state.photos.filter(
         (item) => item.id !== photo.id
       );
+    },
+    editPhoto(photo) {
+      this.photoEditing = photo;
+      this.photoDraft = {
+        title: photo.title || "",
+        date: photo.date || new Date().toISOString().slice(0, 10),
+        description: photo.description || "",
+      };
+    },
+    savePhotoText() {
+      if (!this.photoEditing || !this.photoDraft?.title.trim()) return;
+      this.$set(this.photoEditing, "title", this.photoDraft.title.trim());
+      this.$set(this.photoEditing, "date", this.photoDraft.date);
+      this.$set(
+        this.photoEditing,
+        "description",
+        this.photoDraft.description.trim()
+      );
+      this.photoEditing = null;
+      this.photoDraft = null;
+      this.showNotice("照片纪念文字已保存到云端");
     },
     async addToPhoneCalendar(day) {
       if (!Capacitor.isNativePlatform()) return;
@@ -875,15 +1202,44 @@ new Vue({
         });
       this.modal = null;
     },
-    exportData() {
+    removeStory(story) {
+      if (!confirm(`确定要删除“${story.title}”吗？\n删除后无法撤销。`)) return;
+      this.state.stories = this.state.stories.filter(
+        (item) => item.id !== story.id
+      );
+      this.showNotice("故事已删除并同步到云端");
+    },
+    async exportData() {
+      const content = JSON.stringify(this.state, null, 2);
+      if (Capacitor.isNativePlatform()) {
+        try {
+          const fileName = `only-us-backup-${new Date()
+            .toISOString()
+            .slice(0, 10)}.json`;
+          const result = await Filesystem.writeFile({
+            path: fileName,
+            data: content,
+            directory: Directory.Cache,
+            encoding: Encoding.UTF8,
+          });
+          await Share.share({ title: "Only Us 数据备份", url: result.uri });
+          this.showNotice("备份文件已生成");
+        } catch (error) {
+          this.showNotice("导出失败，请重试");
+          console.warn("导出失败", error);
+        }
+        return;
+      }
       const a = document.createElement("a");
       a.href = URL.createObjectURL(
-        new Blob([JSON.stringify(this.state, null, 2)], {
+        new Blob([content], {
           type: "application/json",
         })
       );
       a.download = "only-us-backup.json";
       a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      this.showNotice("备份文件已导出");
     },
     importData(e) {
       const r = new FileReader();
@@ -892,7 +1248,7 @@ new Vue({
     },
   },
   template: `
-<div class="login-screen" v-if="ready&&!authenticated"><transition name="login-fade"><img :key="loginPhoto" :src="loginPhoto"/></transition><div class="login-shade"/><section class="login-panel"><span class="login-mark"><v-icon name="heart" fill="currentColor"/></span><small>ONLY US</small><h1>欢迎回到我们的故事</h1><p>选择身份并输入专属密码</p><div class="login-users"><button type="button" :class="{active:loginUser==='a'}" @click="selectLoginUser('a')"><i><img v-if="state.profile.avatarA" :src="state.profile.avatarA"><span v-else>{{state.profile.a[0]}}</span></i>{{state.profile.a}}</button><button type="button" :class="{active:loginUser==='b'}" @click="selectLoginUser('b')"><i><img v-if="state.profile.avatarB" :src="state.profile.avatarB"><span v-else>{{state.profile.b[0]}}</span></i>{{state.profile.b}}</button></div><form autocomplete="on" @submit.prevent="login"><input class="login-username" name="username" autocomplete="username" :value="loginUser==='a'?'zhangyafei':'xudan'" readonly tabindex="-1"><label><v-icon name="key-round"/><input ref="loginPasscode" v-model="loginPasscode" name="password" required type="password" autocomplete="current-password" maxlength="32" placeholder="输入专属密码"></label><small class="password-hint">密码为英文小写字母</small><label class="remember-password"><input v-model="rememberPassword" type="checkbox"><i><v-icon name="check"/></i><span>记住密码</span></label><em v-if="loginError">{{loginError}}</em><button>进入 Only Us <v-icon name="arrow-right"/></button></form><footer>徐老师与小张同学 · 只属于我们的空间</footer></section></div>
+<div class="login-screen" v-if="!authenticated"><transition name="login-fade"><img :key="loginPhoto" :src="loginPhoto"/></transition><div class="login-shade"/><div class="login-meteors" aria-hidden="true"><i v-for="n in 7" :key="n" :style="{'--meteor':n}"/></div><section class="login-panel"><span class="login-mark"><v-icon name="heart" fill="currentColor"/></span><small>ONLY US</small><h1>欢迎回到我们的故事</h1><p>选择身份并输入专属密码</p><div class="login-users"><button type="button" :class="{active:loginUser==='a'}" @click="selectLoginUser('a')"><i><img v-if="state.profile.avatarA" :src="state.profile.avatarA"><span v-else>{{state.profile.a[0]}}</span></i>{{state.profile.a}}</button><button type="button" :class="{active:loginUser==='b'}" @click="selectLoginUser('b')"><i><img v-if="state.profile.avatarB" :src="state.profile.avatarB"><span v-else>{{state.profile.b[0]}}</span></i>{{state.profile.b}}</button></div><form autocomplete="on" @submit.prevent="login"><input class="login-username" name="username" autocomplete="username" :value="loginUser==='a'?'zhangyafei':'xudan'" readonly tabindex="-1"><label><v-icon name="key-round"/><input ref="loginPasscode" v-model="loginPasscode" name="password" required type="password" autocomplete="current-password" maxlength="32" placeholder="输入专属密码"></label><div class="login-options"><label class="remember-password"><input v-model="rememberPassword" type="checkbox"><i><v-icon name="check"/></i><span>记住密码</span></label><button type="button" @click="openForgotPassword">忘记密码</button></div><em v-if="loginError">{{loginError}}</em><button :disabled="!ready">{{ready?'进入 Only Us':'正在同步账号'}} <v-icon name="arrow-right"/></button></form><footer>徐老师与小张同学 · 只属于我们的空间</footer></section><div class="overlay account-overlay" v-if="accountModal==='forgot'"><div class="account-dialog"><button class="account-close" @click="accountModal=''"><v-icon name="x"/></button><span class="account-icon"><v-icon name="key-round"/></span><h3>找回密码</h3><p v-if="accountStep==='phone'">输入当前账号绑定的手机号</p><div v-if="accountStep==='phone'" class="account-fields"><input v-model="phoneInput" inputmode="tel" maxlength="11" placeholder="绑定手机号"><button class="primary" @click="sendPhoneOtp">发送验证码</button></div><div v-else-if="accountStep==='otp'" class="account-fields"><input v-model="otpInput" inputmode="numeric" maxlength="8" placeholder="短信验证码"><button class="primary" @click="verifyPhoneOtp">验证手机号</button></div><form v-else class="account-fields" @submit.prevent="resetForgottenPassword"><input required name="next" type="password" minlength="6" placeholder="设置新密码"><input required name="confirmNext" type="password" minlength="6" placeholder="再次输入新密码"><button class="primary">确认重置密码</button></form><small>短信验证码由 Supabase Auth 服务发送</small></div></div></div>
 <div class="app" v-else-if="ready">
  <div class="app-toast" v-if="exitHint">再返回一次退出 APP</div>
  <div class="app-toast" v-if="appNotice">{{appNotice}}</div>
@@ -904,18 +1260,21 @@ new Vue({
   <template v-if="tab==='home'">
    <section class="hero"><img :src="'${PHOTO}'"><div class="shade"/><div class="hero-copy"><span class="eyebrow"><span/> OUR LOVE STORY <span/></span><h1>{{state.profile.a}} <v-icon name="heart" fill="currentColor"/> {{state.profile.b}}</h1><p>{{state.profile.quote}}</p><div class="counter"><div><strong>{{loveDays}}</strong><span>相爱的日子</span></div><i/><div><strong>{{startDate}}</strong><span>故事开始于</span></div></div></div><button class="float-heart" @click="rain"><v-icon name="heart" fill="currentColor"/></button></section>
    <section class="quick"><article @click="go('album')"><div class="qicon pink"><v-icon name="images"/></div><div><b>恋爱相册</b><span>{{state.photos.length}} 张珍贵回忆</span></div><v-icon name="chevron-right"/></article><article @click="go('list')"><div class="qicon purple"><v-icon name="square-check-big"/></div><div><b>恋爱清单</b><span>{{doneCount}}/{{state.todos.length}} 已完成</span></div><v-icon name="chevron-right"/></article><article @click="go('days')"><div class="qicon amber"><v-icon name="calendar-heart"/></div><div><b>下个纪念日</b><span>{{nextAnniversary ? nextAnniversary.title : '添加纪念日'}}</span></div><strong>{{nextAnniversary ? until(nextAnniversary.date) : '+'}}<small>天</small></strong></article></section>
-   <section class="home-grid"><div class="panel"><div class="title"><span><v-icon name="clock-3"/></span><div><b>爱情时间线</b><small>每个瞬间，都值得被记住</small></div><button @click="go('story')">查看全部 <v-icon name="chevron-right"/></button></div><love-timeline :items="state.stories.slice(-3)"/></div><div class="panel"><div class="title"><span><v-icon name="message-circle"/></span><div><b>悄悄话</b><small>只给你看的甜蜜留言</small></div><button @click="go('notes')">查看全部 <v-icon name="chevron-right"/></button></div><love-note v-for="n in latestNotes" :key="n.id" :note="n"/></div></section>
+   <section class="home-grid"><div class="panel"><div class="title"><span><v-icon name="clock-3"/></span><div><b>爱情时间线</b><small>每个瞬间，都值得被记住</small></div><button @click="go('story')">查看全部 <v-icon name="chevron-right"/></button></div><love-timeline :items="state.stories.slice(-3)"/></div><div class="panel"><div class="title"><span><v-icon name="message-circle"/></span><div><b>悄悄话</b><small>只给你看的甜蜜留言</small></div><button @click="go('notes')">查看全部 <v-icon name="chevron-right"/></button></div><love-note v-for="n in latestNotes" :key="n.id" :note="n" :profile="state.profile"/></div></section>
    <section class="surprise"><v-icon name="gift"/><div><b>今日份的小惊喜</b><p>点击开启属于你们的浪漫时刻</p></div><button @click="rain">开启惊喜 <v-icon name="sparkles"/></button></section>
   </template>
-  <section class="page" v-if="tab==='album'"><div class="page-head"><div><h2>恋爱相册</h2><p>把散落在时光里的瞬间，收藏在一起。</p></div><button class="primary" @click="$refs.file.click()"><v-icon name="camera"/>上传照片</button></div><input hidden multiple accept="image/*" type="file" ref="file" @change="photos"><div class="gallery"><figure v-for="p in state.photos" :key="p.id"><img :src="p.src"><figcaption><b>{{p.title}}</b><span>{{p.date}}</span></figcaption><button @click="removePhoto(p)"><v-icon name="trash-2"/></button></figure></div></section>
+  <section class="page" v-if="tab==='album'"><div class="page-head"><div><h2>恋爱相册</h2><p>把散落在时光里的瞬间，收藏在一起。</p></div><button class="primary" @click="$refs.file.click()"><v-icon name="camera"/>上传照片</button></div><input hidden multiple accept="image/*" type="file" ref="file" @change="photos"><div class="gallery"><figure class="upload-preview" :class="{failed:item.failed}" v-for="item in uploadQueue" :key="'upload-'+item.id"><img :src="item.preview"><div class="upload-progress"><b>{{item.progress}}%</b><span>{{item.status}}</span><i><em :style="{width:item.progress+'%'}"/></i></div></figure><figure class="photo-memory" v-for="p in state.photos" :key="p.id"><img :src="p.src"><figcaption><div><b>{{p.title}}</b><span>{{p.date}}</span></div><p>{{p.description||'点击编辑，写下这张照片背后的故事。'}}</p></figcaption><div class="photo-actions"><button title="编辑纪念文字" @click="editPhoto(p)"><v-icon name="pencil"/></button><button title="删除照片" @click="removePhoto(p)"><v-icon name="trash-2"/></button></div></figure></div></section>
   <section class="page list-page" v-if="tab==='list'"><div class="page-head"><div><h2>恋爱清单</h2><p>想一起做的事，一件件变成共同回忆。</p></div><span class="list-progress">已完成 {{doneCount}} / {{state.todos.length}}</span></div><form class="addbar" @submit.prevent="addTodo"><v-icon name="sparkles"/><input ref="todo" placeholder="写下下一件想一起做的事"><button title="添加到清单"><v-icon name="plus"/><span>添加</span></button></form><div class="todo"><label v-for="t in state.todos" :key="t.id" :class="{completed:t.done}"><input type="checkbox" v-model="t.done"><i><v-icon name="check"/></i><span>{{t.text}}</span><button type="button" title="删除" @click.prevent="confirmDelete('todos',t.id,t.text)"><v-icon name="trash-2"/></button></label></div></section>
   <anniversary-page v-if="tab==='days'" :items="state.days" @add="modal='day'" @remove="removeAnniversary" @calendar="addToPhoneCalendar"/>
-  <section class="page" v-if="tab==='notes'"><div class="page-head"><div><h2>悄悄话</h2><p>忙碌的日子里，也别忘了说爱你。</p></div></div><form class="noteform" @submit.prevent="addNote"><textarea ref="note" maxlength="120" placeholder="写一句只给 TA 看的话…"/><button><v-icon name="send"/>发送留言</button></form><love-note v-for="n in state.notes" :key="n.id" :note="n"/></section>
+  <section class="page" v-if="tab==='notes'"><div class="page-head"><div><h2>悄悄话</h2><p>忙碌的日子里，也别忘了说爱你。</p></div></div><form class="noteform" @submit.prevent="addNote"><textarea ref="note" maxlength="120" placeholder="写一句只给 TA 看的话…"/><button><v-icon name="send"/>发送留言</button></form><love-note v-for="n in state.notes" :key="n.id" :note="n" :profile="state.profile"/></section>
   <section class="page future-page" v-if="tab==='future'"><div class="page-head"><div><h2>未来的信</h2><p>把此刻想说的话，交给未来的某一天。</p></div></div><form class="letter-form" @submit.prevent="addLetter"><textarea ref="letterText" required maxlength="500" placeholder="写给未来的我们…"/><label><v-icon name="calendar-days"/><span>开启日期</span><input ref="letterDate" required type="date"></label><button class="primary"><v-icon name="lock-keyhole"/>封存这封信</button></form><div class="letters"><article v-for="letter in state.letters" :key="letter.id" :class="{locked:!letterReady(letter)}"><div><v-icon :name="letterReady(letter)?'mail-open':'lock-keyhole'"/></div><section><b>{{letterReady(letter)?'来自过去的一封信':'尚未到开启时间'}}</b><p v-if="letterReady(letter)">{{letter.text}}</p><p v-else>这封信将在 {{letter.openDate}} 开启</p><small>写于 {{new Date(letter.createdAt).toLocaleDateString('zh-CN')}}</small></section><button title="删除未来信" @click="confirmDelete('letters',letter.id,'这封未来信')"><v-icon name="trash-2"/></button></article><div class="empty-state" v-if="!state.letters.length"><v-icon name="mail"/><b>还没有未来信</b><span>写下第一封，留给未来的你们。</span></div></div></section>
-  <section class="page me-page" v-if="tab==='me'"><div class="me-cover"><span>ONLY US</span><h2>我们的空间</h2><p>{{state.profile.a}} 与 {{state.profile.b}}</p></div><div class="couple-profile"><article><label class="avatar-editor"><img v-if="state.profile.avatarA" :src="state.profile.avatarA"><span v-else>{{state.profile.a[0]}}</span><i><v-icon name="camera"/></i><input hidden type="file" accept="image/*" @change="changeAvatar('avatarA',$event)"></label><b>{{state.profile.a}}</b></article><v-icon class="profile-heart" name="heart" fill="currentColor"/><article><label class="avatar-editor"><img v-if="state.profile.avatarB" :src="state.profile.avatarB"><span v-else>{{state.profile.b[0]}}</span><i><v-icon name="camera"/></i><input hidden type="file" accept="image/*" @change="changeAvatar('avatarB',$event)"></label><b>{{state.profile.b}}</b></article></div><template v-if="!profileEditing"><section class="profile-signature profile-value"><div><i><v-icon name="quote"/></i><span><b>我们的签名</b><small>会展示在首页照片上</small></span></div><p>{{state.profile.quote||'还没有设置签名'}}</p></section><section class="settings-list"><div class="setting-view"><i><v-icon name="calendar-heart"/></i><span><b>恋爱开始日期</b><small>{{startDate}}</small></span></div><button @click="startProfileEdit"><i><v-icon name="user-pen"/></i><span><b>编辑资料</b><small>修改昵称、恋爱日期和我们的签名</small></span><v-icon name="chevron-right"/></button><button class="about-row" @click="updateInfo?updateModal=true:checkForUpdate(true)"><i><v-icon name="info"/></i><span><b>关于我们 <em v-if="updateInfo">有更新</em></b><small>当前版本 {{currentVersion}}{{updateInfo?' · 最新 '+updateInfo.version:''}}</small></span><v-icon name="chevron-right"/></button><button class="logout-row" @click="logout"><i><v-icon name="log-out"/></i><span><b>退出登录</b><small>退出当前账号并返回登录页面</small></span><v-icon name="chevron-right"/></button></section></template><form v-else class="profile-edit-form" @submit.prevent="saveProfile"><div class="profile-edit-heading"><span><v-icon name="user-pen"/></span><div><h3>编辑我们的资料</h3><p>修改后将实时保存到云端</p></div></div><div class="name-edit-grid"><label class="form-field"><span>昵称一</span><input required v-model="profileDraft.a" maxlength="12"></label><label class="form-field"><span>昵称二</span><input required v-model="profileDraft.b" maxlength="12"></label></div><label class="form-field"><span>恋爱开始日期</span><input required type="date" v-model="profileDraft.since"></label><label class="form-field"><span>我们的签名</span><textarea v-model="profileDraft.quote" maxlength="50" placeholder="写一句属于你们的话…"/></label><div><button type="button" @click="cancelProfileEdit">取消</button><button class="primary"><v-icon name="check"/>保存资料</button></div></form></section>
-  <section class="page" v-if="tab==='story'"><div class="page-head"><div><h2>我们的故事</h2><p>从相遇到未来，每一章都由我们共同写下。</p></div><button class="primary" @click="modal='story'"><v-icon name="plus"/>记录故事</button></div><love-timeline :items="state.stories"/><div class="backup"><b>数据备份</b><span>{{cloudEnabled?cloudSync:'当前仅保存在本机，卸载 APP 前请先导出备份。'}}</span><button @click="exportData"><v-icon name="download"/>导出</button><label><v-icon name="upload"/>导入<input hidden type="file" accept="application/json" @change="importData"></label></div></section>
+  <section class="page me-page" v-if="tab==='me'"><div class="me-cover"><span>ONLY US</span><h2>我们的空间</h2><p>{{state.profile.a}} 与 {{state.profile.b}}</p></div><div class="couple-profile"><article><label class="avatar-editor"><img v-if="state.profile.avatarA" :src="state.profile.avatarA"><span v-else>{{state.profile.a[0]}}</span><i><v-icon name="camera"/></i><input hidden type="file" accept="image/*" @change="changeAvatar('avatarA',$event)"></label><b>{{state.profile.a}}</b></article><v-icon class="profile-heart" name="heart" fill="currentColor"/><article><label class="avatar-editor"><img v-if="state.profile.avatarB" :src="state.profile.avatarB"><span v-else>{{state.profile.b[0]}}</span><i><v-icon name="camera"/></i><input hidden type="file" accept="image/*" @change="changeAvatar('avatarB',$event)"></label><b>{{state.profile.b}}</b></article></div><template v-if="!profileEditing"><section class="profile-signature profile-value"><div><i><v-icon name="quote"/></i><span><b>我们的签名</b><small>会展示在首页照片上</small></span></div><p>{{state.profile.quote||'还没有设置签名'}}</p></section><section class="settings-list"><div class="setting-view"><i><v-icon name="calendar-heart"/></i><span><b>恋爱开始日期</b><small>{{startDate}}</small></span></div><button @click="startProfileEdit"><i><v-icon name="user-pen"/></i><span><b>编辑资料</b><small>修改昵称、恋爱日期和我们的签名</small></span><v-icon name="chevron-right"/></button><button @click="openAccountSecurity"><i><v-icon name="shield-check"/></i><span><b>账号与安全</b><small>修改密码、绑定或更换手机号</small></span><v-icon name="chevron-right"/></button><button class="about-row" @click="updateInfo?updateModal=true:checkForUpdate(true)"><i><v-icon name="info"/></i><span><b>关于我们 <em v-if="updateInfo">有更新</em></b><small>当前版本 {{currentVersion}}{{updateInfo?' · 最新 '+updateInfo.version:''}}</small></span><v-icon name="chevron-right"/></button><button class="logout-row" @click="logout"><i><v-icon name="log-out"/></i><span><b>退出登录</b><small>退出当前账号并返回登录页面</small></span><v-icon name="chevron-right"/></button></section></template><form v-else class="profile-edit-form" @submit.prevent="saveProfile"><div class="profile-edit-heading"><span><v-icon name="user-pen"/></span><div><h3>编辑我们的资料</h3><p>修改后将实时保存到云端</p></div></div><div class="name-edit-grid"><label class="form-field"><span>昵称一</span><input required v-model="profileDraft.a" maxlength="12"></label><label class="form-field"><span>昵称二</span><input required v-model="profileDraft.b" maxlength="12"></label></div><label class="form-field"><span>恋爱开始日期</span><input required type="date" v-model="profileDraft.since"></label><label class="form-field"><span>我们的签名</span><textarea v-model="profileDraft.quote" maxlength="50" placeholder="写一句属于你们的话…"/></label><div><button type="button" @click="cancelProfileEdit">取消</button><button class="primary"><v-icon name="check"/>保存资料</button></div></form></section>
+  <section class="page" v-if="tab==='story'"><div class="page-head"><div><h2>我们的故事</h2><p>从相遇到未来，每一章都由我们共同写下。</p></div><button class="primary" @click="modal='story'"><v-icon name="plus"/>记录故事</button></div><love-timeline :items="state.stories" editable @remove="removeStory"/><div class="backup"><b>数据备份</b><span>{{cloudEnabled?cloudSync:'当前仅保存在本机，卸载 APP 前请先导出备份。'}}</span><button @click="exportData"><v-icon name="download"/>导出</button><label><v-icon name="upload"/>导入<input hidden type="file" accept="application/json" @change="importData"></label></div></section>
  </main><footer><v-icon name="heart" fill="currentColor"/> Only Us · 愿每一天都值得纪念</footer>
- <div class="overlay" v-if="modal" @mousedown.self="modal=null"><div class="modal" :class="{'day-modal':modal==='day'}"><button class="close" @click="modal=null"><v-icon name="x"/></button><small v-if="modal==='day'">ONLY US CALENDAR</small><h3>{{modal==='day'?'添加纪念日':'记录故事'}}</h3><form @submit.prevent="saveModal"><label class="form-field"><span>纪念日名称</span><input required name="title" placeholder="例如：第一次旅行"></label><div class="date-time-grid" v-if="modal==='day'"><label class="form-field"><span><v-icon name="calendar-days"/>日期</span><input required name="date" type="date"></label><label class="form-field"><span><v-icon name="clock-3"/>时间</span><div class="time-select"><select name="hour" aria-label="小时"><option v-for="hour in timeHours" :key="hour" :value="hour" :selected="hour==='09'">{{hour}}</option></select><b>:</b><select name="minute" aria-label="分钟"><option v-for="minute in timeMinutes" :key="minute" :value="minute" :selected="minute==='00'">{{minute}}</option></select></div></label></div><label class="form-field" v-else><span>日期</span><input required name="date" type="date"></label><label class="remind-field" v-if="modal==='day'"><span><v-icon name="bell-ring"/>提前提醒</span><select name="remindDays"><option value="0">当天提醒</option><option value="1" selected>提前1天</option><option value="3">提前3天</option><option value="7">提前7天</option><option value="30">提前30天</option></select></label><label class="calendar-toggle" v-if="modal==='day'"><span><i><v-icon name="calendar-plus"/></i><b>添加到手机日历</b><small>保存后打开系统日历确认</small></span><input type="checkbox" name="addCalendar" checked><i/></label><textarea v-if="modal==='story'" required name="text" placeholder="那天发生了什么…"/><button class="primary">{{modal==='day'?'保存并设置提醒':'保存'}}</button></form></div></div>
+ <div class="overlay" v-if="modal" @mousedown.self="modal=null"><div class="modal" :class="{'day-modal':modal==='day'}"><button class="close" @click="modal=null"><v-icon name="x"/></button><small v-if="modal==='day'">ONLY US CALENDAR</small><h3>{{modal==='day'?'添加纪念日':'记录故事'}}</h3><form @submit.prevent="saveModal"><label class="form-field"><span>纪念日名称</span><input required name="title" placeholder="例如：第一次旅行"></label><div class="date-time-grid" v-if="modal==='day'"><label class="form-field"><span><v-icon name="calendar-days"/>日期</span><input required name="date" type="date"></label><label class="form-field"><span><v-icon name="clock-3"/>时间</span><div class="time-select"><input name="hour" aria-label="小时" type="number" inputmode="numeric" min="0" max="23" value="9"><b>:</b><input name="minute" aria-label="分钟" type="number" inputmode="numeric" min="0" max="59" step="5" value="0"></div></label></div><label class="form-field" v-else><span>日期</span><input required name="date" type="date"></label><label class="remind-field" v-if="modal==='day'"><span><v-icon name="bell-ring"/>提前提醒</span><select name="remindDays"><option value="0">当天提醒</option><option value="1" selected>提前1天</option><option value="3">提前3天</option><option value="7">提前7天</option><option value="30">提前30天</option></select></label><label class="calendar-toggle" v-if="modal==='day'"><span><i><v-icon name="calendar-plus"/></i><b>添加到手机日历</b><small>保存后打开系统日历确认</small></span><input type="checkbox" name="addCalendar" checked><i/></label><textarea v-if="modal==='story'" required name="text" placeholder="那天发生了什么…"/><button class="primary">{{modal==='day'?'保存并设置提醒':'保存'}}</button></form></div></div>
+ <div class="overlay" v-if="photoEditing" @mousedown.self="photoEditing=null"><div class="modal photo-edit-modal"><button class="close" @click="photoEditing=null"><v-icon name="x"/></button><small>PHOTO MEMORY</small><h3>编辑照片纪念</h3><form @submit.prevent="savePhotoText"><label class="form-field"><span>纪念标题</span><input required v-model="photoDraft.title" maxlength="30" placeholder="例如：第一次旅行"></label><label class="form-field"><span>拍摄日期</span><input required type="date" v-model="photoDraft.date"></label><label class="form-field"><span>纪念文字</span><textarea v-model="photoDraft.description" maxlength="200" placeholder="写下这张照片背后的故事…"/></label><button class="primary"><v-icon name="check"/>保存纪念内容</button></form></div></div>
+ <div class="overlay confirm-overlay" v-if="logoutConfirm"><div class="confirm-dialog"><span><v-icon name="log-out"/></span><h3>退出当前账号？</h3><p>退出后需要重新验证密码才能进入。</p><div><button @click="logoutConfirm=false">取消</button><button class="danger" @click="confirmLogout">确认退出</button></div></div></div>
+ <div class="overlay account-overlay" v-if="accountModal==='security'"><div class="account-dialog"><button class="account-close" @click="accountModal=''"><v-icon name="x"/></button><span class="account-icon"><v-icon name="shield-check"/></span><h3>账号与安全</h3><template v-if="accountStep==='form'"><form class="account-fields" @submit.prevent="changePassword"><b>修改密码</b><input required name="current" type="password" placeholder="当前密码"><input required name="next" type="password" minlength="6" placeholder="新密码（至少6位）"><input required name="confirmNext" type="password" minlength="6" placeholder="再次输入新密码"><button class="primary">保存新密码</button></form><div class="account-divider"><span>绑定手机号</span></div><div class="account-fields"><input v-model="phoneInput" inputmode="tel" maxlength="11" placeholder="11位手机号"><button @click="sendPhoneOtp">发送验证码</button></div></template><div v-else class="account-fields"><p>验证码已发送至 {{phoneInput}}</p><input v-model="otpInput" inputmode="numeric" maxlength="8" placeholder="短信验证码"><button class="primary" @click="verifyPhoneOtp">确认绑定</button></div><small>手机号验证需要 Supabase 已配置短信服务商</small></div></div>
  <div class="overlay update-overlay" v-if="updateModal&&updateInfo"><div class="update-dialog"><div class="update-art"><v-icon name="sparkles"/><span>NEW</span></div><button class="close" title="稍后更新" @click="updateModal=false"><v-icon name="x"/></button><small>ONLY US UPDATE</small><h3>发现新版本 {{updateInfo.version}}</h3><p>本次更新</p><ul><li v-for="line in updateInfo.notes.split('；')" :key="line"><v-icon name="check-circle-2"/>{{line}}</li></ul><div><button class="later" @click="updateModal=false">暂不更新</button><button class="primary" @click="installUpdate"><v-icon name="download"/>立即更新</button></div></div></div>
  <div class="overlay quick-overlay" v-if="quickAddOpen" @mousedown.self="quickAddOpen=false"><div class="quick-sheet"><i/><h3>记录此刻</h3><div><button @click="chooseQuickAdd('photo')"><span><v-icon name="camera"/></span>上传照片</button><button @click="chooseQuickAdd('notes')"><span><v-icon name="message-circle"/></span>写悄悄话</button><button @click="chooseQuickAdd('day')"><span><v-icon name="calendar-heart"/></span>加纪念日</button><button @click="chooseQuickAdd('future')"><span><v-icon name="mail"/></span>写未来信</button></div><button class="sheet-cancel" @click="quickAddOpen=false">取消</button></div></div>
 </div><div class="loading load-error" v-else-if="loadError"><v-icon name="cloud-off"/><b>暂时无法读取云端数据</b><span>请检查网络后重试，避免显示不准确的数据。</span><button @click="reloadPage">重新连接</button></div><div class="loading" v-else><v-icon name="heart" fill="currentColor"/>正在打开我们的故事…</div>`,
