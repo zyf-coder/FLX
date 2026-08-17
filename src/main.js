@@ -20,10 +20,11 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const COUPLE_ID = import.meta.env.VITE_COUPLE_ID;
 const UPDATE_URLS = [
-  "https://onlyforus.online/update.json",
   "https://raw.githubusercontent.com/zyf-coder/FLX/main/public/update.json",
+  "https://onlyforus.online/update.json",
 ];
-const WEB_VERSION = "1.4.10";
+const GITHUB_APK_URL = "https://github.com/zyf-coder/FLX/raw/refs/heads/main/public/downloads/OnlyUs-Android.apk";
+const WEB_VERSION = "1.4.11";
 const BOUND_EMAIL_ACCOUNTS = {
   a: {
     emailHash:
@@ -1089,11 +1090,10 @@ new Vue({
               cache: "no-store",
             });
             if (!response.ok) continue;
-            update = await response.json();
-            if (url.includes("raw.githubusercontent.com"))
-              update.androidUrl =
-                "https://raw.githubusercontent.com/zyf-coder/FLX/main/public/downloads/OnlyUs-Android.apk";
-            break;
+            const candidate = await response.json();
+            candidate.androidUrl = GITHUB_APK_URL;
+            if (!update || isNewerVersion(candidate.version, update.version))
+              update = candidate;
           } catch (error) {
             console.warn("更新源暂不可用", url, error);
           }
