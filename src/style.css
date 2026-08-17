@@ -1939,7 +1939,7 @@ footer svg {
     animation: mobile-page-in 0.28s ease both;
   }
   .app > footer {
-    padding-bottom: 95px;
+    padding: 18px 12px 88px;
   }
   .future-page,
   .me-page {
@@ -1964,6 +1964,8 @@ footer svg {
   }
   .me-page {
     margin: 0 -14px;
+    min-height: auto;
+    padding-bottom: 0;
   }
   .me-cover {
     height: 155px;
@@ -2586,7 +2588,11 @@ footer svg {
 .confirm-dialog,
 .account-dialog {
   width: min(400px, 100%);
-  background: rgba(255, 255, 255, 0.96);
+  background: linear-gradient(
+    155deg,
+    rgba(255, 255, 255, 0.98),
+    rgba(255, 242, 247, 0.97)
+  );
   border: 1px solid #ffffffb8;
   border-radius: 8px;
   padding: 26px;
@@ -2705,6 +2711,130 @@ footer svg {
   color: #ae98a0;
   font-size: 10px;
   margin-top: 14px;
+}
+.security-dialog {
+  overflow: hidden;
+}
+.security-dialog:before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 96px;
+  background: linear-gradient(120deg, #fff0f5, #f4efff);
+  z-index: -1;
+}
+.account-back {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  min-height: 34px !important;
+  border: 0 !important;
+  background: transparent !important;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 12px;
+}
+.account-back svg {
+  width: 16px;
+}
+.security-menu {
+  display: grid;
+  gap: 10px;
+  margin-top: 20px;
+}
+.security-menu > button {
+  min-height: 72px;
+  padding: 12px;
+  display: grid;
+  grid-template-columns: 42px 1fr 18px;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  border-color: #eddde4;
+  box-shadow: 0 6px 18px rgba(82, 45, 61, 0.06);
+}
+.security-menu > button > i {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--pink);
+  background: #fff0f5;
+}
+.security-menu > button > i svg {
+  width: 19px;
+}
+.security-menu > button > span {
+  display: grid;
+  gap: 4px;
+}
+.security-menu b {
+  font-size: 14px;
+}
+.security-menu small,
+.bound-phone {
+  color: #9d8790;
+  font-size: 11px;
+}
+.security-menu > button > svg {
+  width: 17px;
+  color: #c3adb6;
+}
+.login-mode {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 3px;
+  margin: 14px 0 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.28);
+}
+.login-mode button {
+  min-height: 34px;
+  border: 0;
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.72);
+  background: transparent;
+}
+.login-mode button.active {
+  color: #70404f;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 4px 12px rgba(41, 22, 30, 0.14);
+}
+.login-sms {
+  display: grid;
+  gap: 10px;
+}
+.login-sms > label {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 12px;
+  min-height: 46px;
+  border: 1px solid rgba(255, 255, 255, 0.48);
+  background: rgba(255, 255, 255, 0.2);
+}
+.login-sms input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  color: #fff;
+  background: transparent;
+}
+.login-sms input::placeholder {
+  color: rgba(255, 255, 255, 0.7);
+}
+.login-sms button {
+  min-height: 44px;
+  border: 0;
+  background: #fff;
+  color: #7f4458;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
 }
 @media (max-width: 380px) {
   .confirm-dialog,
