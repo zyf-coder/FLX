@@ -2205,6 +2205,59 @@ footer svg {
   min-width: 0;
   justify-content: center;
 }
+@media (max-width: 800px) {
+  .update-overlay {
+    padding: max(24px, env(safe-area-inset-top)) 20px
+      max(24px, env(safe-area-inset-bottom));
+  }
+  .update-dialog {
+    width: min(350px, 100%);
+    max-height: 72dvh;
+    padding: 0 20px 18px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .update-art {
+    flex: 0 0 82px;
+    height: 82px;
+    margin: 0 -20px 14px;
+  }
+  .update-art svg {
+    width: 38px;
+    height: 38px;
+  }
+  .update-art span {
+    left: 14px;
+    top: 12px;
+  }
+  .update-dialog > small {
+    font-size: 10px;
+  }
+  .update-dialog h3 {
+    font-size: 20px;
+    margin: 5px 0 10px;
+  }
+  .update-dialog > p {
+    margin: 0 0 7px;
+  }
+  .update-dialog ul {
+    min-height: 0;
+    overflow-y: auto;
+    margin-bottom: 14px;
+    gap: 7px;
+  }
+  .update-dialog li {
+    font-size: 12px;
+    line-height: 18px;
+  }
+  .update-dialog > div:last-child {
+    flex: 0 0 auto;
+  }
+  .update-dialog > div:last-child button {
+    min-height: 40px;
+  }
+}
 @media (max-width: 360px) {
   .update-dialog {
     padding-left: 18px;
