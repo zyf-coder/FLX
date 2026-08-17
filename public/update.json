@@ -1,6 +1,6 @@
 {
-  "version": "1.4.5",
-  "versionCode": 20,
+  "version": "1.4.6",
+  "versionCode": 21,
   "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android.apk",
-  "notes": "纪念日支持农历日期并补全秒级倒计时；照片上传后读取拍摄地址作为标题，无信息时不显示占位内容；返回操作优先关闭当前弹框。"
+  "notes": "修正 Android 系统日期选择器的绿色主题，统一为 Only Us 暖粉色。"
 }
