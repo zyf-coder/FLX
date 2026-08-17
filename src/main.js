@@ -18,7 +18,7 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const COUPLE_ID = import.meta.env.VITE_COUPLE_ID;
 const UPDATE_URL = "https://zyf-coder.github.io/FLX/update.json";
-const WEB_VERSION = "1.2.1";
+const WEB_VERSION = "1.2.2";
 const AUTH_KEY = "only-us-auth";
 const SESSION_KEY = "only-us-session";
 const REMEMBERED_PASSWORDS_KEY = "only-us-remembered-passwords";
@@ -456,6 +456,7 @@ new Vue({
     updateModal: false,
     quickAddOpen: false,
     appNotice: "",
+    appNoticeType: "success",
     profileEditing: false,
     profileDraft: null,
     authenticated: localStorage.getItem(AUTH_KEY) === "yes",
@@ -933,10 +934,22 @@ new Vue({
       await Browser.open({ url: this.updateInfo.androidUrl });
     },
     showNotice(message) {
-      this.appNotice = message;
+      const cleanMessage = String(message)
+        .replace("密码修改成功并已同步到云端", "密码修改成功")
+        .replace("头像已更新并同步到云端", "头像已更新")
+        .replace("照片纪念文字已保存到云端", "已保存")
+        .replace("故事已删除并同步到云端", "故事已删除")
+        .replace("已成功保存到云端", "已保存")
+        .replace("已保存到云端", "上传成功");
+      this.appNoticeType = /失败|错误|不正确|无法|未能|中断/.test(cleanMessage)
+        ? "error"
+        : /正在|请输入|请完整|暂时|当前已是/.test(cleanMessage)
+        ? "info"
+        : "success";
+      this.appNotice = cleanMessage;
       setTimeout(() => {
-        if (this.appNotice === message) this.appNotice = "";
-      }, 2200);
+        if (this.appNotice === cleanMessage) this.appNotice = "";
+      }, 2600);
     },
     chooseQuickAdd(target) {
       this.quickAddOpen = false;
@@ -994,6 +1007,7 @@ new Vue({
         quote: this.profileDraft.quote.trim(),
       });
       this.cancelProfileEdit();
+      this.showNotice("已保存");
     },
     addLetter() {
       const text = this.$refs.letterText.value.trim();
@@ -1254,8 +1268,8 @@ new Vue({
   template: `
 <div class="login-screen" v-if="!authenticated"><transition name="login-fade"><img :key="loginPhoto" :src="loginPhoto"/></transition><div class="login-shade"/><div class="login-meteors" aria-hidden="true"><i v-for="n in 7" :key="n" :style="{'--meteor':n}"/></div><section class="login-panel"><span class="login-mark"><v-icon name="heart" fill="currentColor"/></span><small>ONLY US</small><h1>欢迎回到我们的故事</h1><p>选择身份并输入专属密码</p><div class="login-users"><button type="button" :class="{active:loginUser==='a'}" @click="selectLoginUser('a')"><i><img v-if="state.profile.avatarA" :src="state.profile.avatarA"><span v-else>{{state.profile.a[0]}}</span></i>{{state.profile.a}}</button><button type="button" :class="{active:loginUser==='b'}" @click="selectLoginUser('b')"><i><img v-if="state.profile.avatarB" :src="state.profile.avatarB"><span v-else>{{state.profile.b[0]}}</span></i>{{state.profile.b}}</button></div><form autocomplete="on" @submit.prevent="login"><input class="login-username" name="username" autocomplete="username" :value="loginUser==='a'?'zhangyafei':'xudan'" readonly tabindex="-1"><label><v-icon name="key-round"/><input ref="loginPasscode" v-model="loginPasscode" name="password" required type="password" autocomplete="current-password" maxlength="32" placeholder="输入专属密码"></label><div class="login-options"><label class="remember-password"><input v-model="rememberPassword" type="checkbox"><i><v-icon name="check"/></i><span>记住密码</span></label><button type="button" @click="openForgotPassword">忘记密码</button></div><em v-if="loginError">{{loginError}}</em><button :disabled="!ready">{{ready?'进入 Only Us':'正在同步账号'}} <v-icon name="arrow-right"/></button></form><footer>徐老师与小张同学 · 只属于我们的空间</footer></section><div class="overlay account-overlay" v-if="accountModal==='forgot'"><div class="account-dialog"><button class="account-close" @click="accountModal=''"><v-icon name="x"/></button><span class="account-icon"><v-icon name="key-round"/></span><h3>找回密码</h3><p v-if="accountStep==='phone'">输入当前账号绑定的手机号</p><div v-if="accountStep==='phone'" class="account-fields"><input v-model="phoneInput" inputmode="tel" maxlength="11" placeholder="绑定手机号"><button class="primary" @click="sendPhoneOtp">发送验证码</button></div><div v-else-if="accountStep==='otp'" class="account-fields"><input v-model="otpInput" inputmode="numeric" maxlength="8" placeholder="短信验证码"><button class="primary" @click="verifyPhoneOtp">验证手机号</button></div><form v-else class="account-fields" @submit.prevent="resetForgottenPassword"><input required name="next" type="password" minlength="6" placeholder="设置新密码"><input required name="confirmNext" type="password" minlength="6" placeholder="再次输入新密码"><button class="primary">确认重置密码</button></form><small>短信验证码由 Supabase Auth 服务发送</small></div></div></div>
 <div class="app" v-else-if="ready">
- <div class="app-toast" v-if="exitHint">再返回一次退出 APP</div>
- <div class="app-toast" v-if="appNotice">{{appNotice}}</div>
+ <div class="app-toast exit-toast" v-if="exitHint"><v-icon name="info"/><span>再返回一次退出 APP</span></div>
+ <transition name="toast"><div class="app-toast" :class="'toast-'+appNoticeType" v-if="appNotice"><v-icon :name="appNoticeType==='error'?'circle-alert':appNoticeType==='info'?'info':'check-circle-2'"/><span>{{appNotice}}</span></div></transition>
  <span v-for="h in hearts" :key="h.id" class="rain" :style="{left:h.left+'%',animationDelay:h.delay+'s',fontSize:h.size+'px'}">♥</span>
  <header><button class="brand" @click="go('home')"><span><v-icon name="heart" fill="currentColor"/></span><b>Only Us</b><small>我们的恋爱空间</small></button><nav><button v-for="n in nav" :key="n[0]" :class="{active:tab===n[0]}" @click="go(n[0])"><v-icon :name="n[1]"/>{{n[2]}}</button></nav><div class="tools"><span class="music-label" v-if="music"><i></i>多幸运 · 韩安旭</span><span class="music-hearts" v-if="music" aria-hidden="true"><i v-for="n in 6" :key="n" :style="{'--heart-index':n}">♥</i></span><button :title="music?'暂停《多幸运》':'播放《多幸运》'" @click="toggleMusic"><v-icon :name="music?'music-2':'volume-x'"/></button><button title="爱心雨" @click="rain"><v-icon name="sparkles"/></button><button class="hamb" @click="menu=!menu"><v-icon name="menu"/></button></div></header><audio ref="bgm" :src="'${MUSIC_PREVIEW}'" preload="none" loop @pause="music=false" @play="music=true"></audio>
  <div class="mobile-menu" v-if="menu"><button v-for="n in nav" :key="n[0]" @click="go(n[0])"><v-icon :name="n[1]"/>{{n[2]}}</button></div>
