@@ -1,6 +1,6 @@
 {
-  "version": "1.4.11",
-  "versionCode": 26,
+  "version": "1.4.12",
+  "versionCode": 27,
   "androidUrl": "https://github.com/zyf-coder/FLX/raw/refs/heads/main/public/downloads/OnlyUs-Android.apk",
-  "notes": "更新检查统一使用 GitHub 主源，下载地址固定为 GitHub，避免域名或缓存导致无法提示更新。"
+  "notes": "优化我的页面顶部布局；相册中的新旧视频加载后都会默认展示第一帧画面。"
 }
