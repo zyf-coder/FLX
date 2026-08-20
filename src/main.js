@@ -20,11 +20,12 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const COUPLE_ID = import.meta.env.VITE_COUPLE_ID;
 const UPDATE_URLS = [
-  "https://raw.githubusercontent.com/zyf-coder/FLX/main/public/update.json",
   "https://zyf-coder.github.io/FLX/update.json",
+  "https://cdn.jsdelivr.net/gh/zyf-coder/FLX@main/public/update.json",
 ];
-const GITHUB_APK_URL = "https://github.com/zyf-coder/FLX/raw/refs/heads/main/public/downloads/OnlyUs-Android.apk";
-const WEB_VERSION = "1.4.14";
+const PAGES_APK_URL = "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android.apk";
+const CDN_APK_URL = "https://cdn.jsdelivr.net/gh/zyf-coder/FLX@main/public/downloads/OnlyUs-Android.apk";
+const WEB_VERSION = "1.4.15";
 const BOUND_EMAIL_ACCOUNTS = {
   a: {
     emailHash:
@@ -1087,12 +1088,16 @@ new Vue({
         let update = null;
         for (const url of UPDATE_URLS) {
           try {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 4500);
             const response = await fetch(`${url}?t=${Date.now()}`, {
               cache: "no-store",
+              signal: controller.signal,
             });
+            clearTimeout(timer);
             if (!response.ok) continue;
             const candidate = await response.json();
-            candidate.androidUrl = GITHUB_APK_URL;
+            candidate.androidUrl = candidate.androidUrl || CDN_APK_URL;
             if (!update || isNewerVersion(candidate.version, update.version))
               update = candidate;
           } catch (error) {
@@ -1113,7 +1118,31 @@ new Vue({
     },
     async installUpdate() {
       if (!this.updateInfo) return;
-      await Browser.open({ url: this.updateInfo.androidUrl });
+      const candidates = [
+        this.updateInfo.androidUrl,
+        PAGES_APK_URL,
+        CDN_APK_URL,
+      ].filter(Boolean);
+      let downloadUrl = candidates[0];
+      for (const candidate of candidates) {
+        try {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 4500);
+          const response = await fetch(candidate, {
+            method: "HEAD",
+            cache: "no-store",
+            signal: controller.signal,
+          });
+          clearTimeout(timer);
+          if (response.ok) {
+            downloadUrl = candidate;
+            break;
+          }
+        } catch (error) {
+          console.warn("下载线路暂不可用", candidate, error);
+        }
+      }
+      await Browser.open({ url: downloadUrl });
     },
     showNotice(message) {
       const cleanMessage = String(message)
