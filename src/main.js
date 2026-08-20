@@ -21,10 +21,10 @@ const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const COUPLE_ID = import.meta.env.VITE_COUPLE_ID;
 const UPDATE_URLS = [
   "https://raw.githubusercontent.com/zyf-coder/FLX/main/public/update.json",
-  "https://onlyforus.online/update.json",
+  "https://zyf-coder.github.io/FLX/update.json",
 ];
 const GITHUB_APK_URL = "https://github.com/zyf-coder/FLX/raw/refs/heads/main/public/downloads/OnlyUs-Android.apk";
-const WEB_VERSION = "1.4.13";
+const WEB_VERSION = "1.4.14";
 const BOUND_EMAIL_ACCOUNTS = {
   a: {
     emailHash:
@@ -255,7 +255,7 @@ const emailOtpApi = async (action, email, token = "") => {
   const endpoint = action === "send" ? "otp" : "verify";
   const body =
     action === "send"
-      ? { email, create_user: true, email_redirect_to: "https://onlyforus.online/" }
+      ? { email, create_user: true, email_redirect_to: "https://zyf-coder.github.io/FLX/" }
       : { email, token, type: "email" };
   const response = await fetch(`${SUPABASE_URL}/auth/v1/${endpoint}`, {
     method: "POST",
