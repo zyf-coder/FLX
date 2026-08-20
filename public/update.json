@@ -1,6 +1,6 @@
 {
-  "version": "1.4.14",
-  "versionCode": 29,
-  "androidUrl": "https://github.com/zyf-coder/FLX/raw/refs/heads/main/public/downloads/OnlyUs-Android.apk",
-  "notes": "网站访问、邮箱验证回跳和应用更新统一切换为 GitHub 服务，不再依赖原自定义域名。"
+  "version": "1.4.15",
+  "versionCode": 30,
+  "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android.apk",
+  "notes": "增强网页离线缓存，GitHub 短暂异常时已访问过的设备仍可进入；更新检查与安装包下载增加备用线路。"
 }
