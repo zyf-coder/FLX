@@ -33,6 +33,8 @@ jobs:
           VITE_SUPABASE_ANON_KEY: sb_publishable_EsOGhn13FmihbXbTzK9cMA_QWlJn0gj
           VITE_COUPLE_ID: 47c18ea0-61bd-4b27-bdd5-33b8f2dc7f71
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
