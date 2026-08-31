@@ -25,7 +25,7 @@ const UPDATE_URLS = [
 ];
 const PAGES_APK_URL = "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android.apk";
 const CDN_APK_URL = "https://cdn.jsdelivr.net/gh/zyf-coder/FLX@main/public/downloads/OnlyUs-Android.apk";
-const WEB_VERSION = "1.4.16";
+const WEB_VERSION = "1.4.17";
 const BOUND_EMAIL_ACCOUNTS = {
   a: {
     emailHash:
@@ -344,9 +344,17 @@ const storage = {
   async get() {
     if (!cloud.enabled) return defaults;
     const remote = await cloud.get();
-    if (remote) return remote;
-    await cloud.set(defaults);
-    return defaults;
+    const cached = await indexedDb.get();
+    if (remote) {
+      const recovered = clone(remote);
+      ["photos", "notes", "stories", "letters", "todos", "days"].forEach((key) => {
+        if (Array.isArray(cached?.[key]) && cached[key].length > 0 && Array.isArray(recovered[key]) && recovered[key].length === 0) {
+          recovered[key] = cached[key];
+        }
+      });
+      return recovered;
+    }
+    return cached || clone(defaults);
   },
   async set(value) {
     const snapshot = clone(value);
