@@ -1,6 +1,6 @@
 {
-  "version": "1.4.16",
-  "versionCode": 31,
+  "version": "1.4.17",
+  "versionCode": 32,
   "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android.apk",
-  "notes": "优化 APP 启动连接，云端响应较慢时不再卡在进入界面，并自动使用安全缓存继续打开。"
+  "notes": "修复云端短暂返回空数据时覆盖悄悄话和相册的问题，并支持从设备安全缓存自动恢复。"
 }
