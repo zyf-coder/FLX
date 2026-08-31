@@ -1,6 +1,6 @@
 {
-  "version": "1.4.15",
-  "versionCode": 30,
+  "version": "1.4.16",
+  "versionCode": 31,
   "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android.apk",
-  "notes": "增强网页离线缓存，GitHub 短暂异常时已访问过的设备仍可进入；更新检查与安装包下载增加备用线路。"
+  "notes": "优化 APP 启动连接，云端响应较慢时不再卡在进入界面，并自动使用安全缓存继续打开。"
 }

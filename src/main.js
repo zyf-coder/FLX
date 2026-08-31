@@ -25,7 +25,7 @@ const UPDATE_URLS = [
 ];
 const PAGES_APK_URL = "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android.apk";
 const CDN_APK_URL = "https://cdn.jsdelivr.net/gh/zyf-coder/FLX@main/public/downloads/OnlyUs-Android.apk";
-const WEB_VERSION = "1.4.15";
+const WEB_VERSION = "1.4.16";
 const BOUND_EMAIL_ACCOUNTS = {
   a: {
     emailHash:
@@ -228,12 +228,19 @@ const cloud = {
   },
   async get() {
     if (!this.enabled) return null;
-    const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/couple_states?couple_id=eq.${encodeURIComponent(
-        COUPLE_ID
-      )}&select=state`,
-      { headers: this.headers }
-    );
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    let response;
+    try {
+      response = await fetch(
+        `${SUPABASE_URL}/rest/v1/couple_states?couple_id=eq.${encodeURIComponent(
+          COUPLE_ID
+        )}&select=state`,
+        { headers: this.headers, signal: controller.signal }
+      );
+    } finally {
+      clearTimeout(timeout);
+    }
     if (!response.ok) throw new Error(`Cloud read failed: ${response.status}`);
     const rows = await response.json();
     return rows[0]?.state || null;
@@ -652,7 +659,10 @@ new Vue({
     state: {
       deep: true,
       handler(v) {
-        if (this.ready && !this.applyingRemote) this.persistState(v, true);
+        if (this.ready && !this.applyingRemote) {
+          indexedDb.set(v);
+          this.persistState(v, true);
+        }
       },
     },
   },
@@ -661,15 +671,17 @@ new Vue({
     try {
       savedState = await storage.get();
     } catch (error) {
-      this.loadError = true;
-      this.cloudSync = "无法连接云端，请检查网络";
-      return;
+      savedState = await indexedDb.get();
+      savedState = savedState || clone(defaults);
+      this.cloudSync = "云端暂时不可用，已使用安全缓存";
+      console.warn("云端读取超时，先进入应用", error);
     }
     this.state = JSON.parse(
       JSON.stringify(savedState)
         .replaceAll("小满", "小张同学")
         .replaceAll("阿屿", "徐老师")
     );
+    indexedDb.set(this.state);
     let migratedPhotoPath = false;
     this.state.photos = this.state.photos.map((photo) => {
       if (String(photo.src).startsWith("/FLX/")) {
