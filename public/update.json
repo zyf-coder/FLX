@@ -1,6 +1,6 @@
 {
-  "version": "1.4.17",
-  "versionCode": 32,
+  "version": "2.1.1",
+  "versionCode": 33,
   "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android.apk",
-  "notes": "修复云端短暂返回空数据时覆盖悄悄话和相册的问题，并支持从设备安全缓存自动恢复。"
+  "notes": "支持安卓 Motion Photo 和 iPhone Live Photo 动态展示；优化视频上传超时与错误提示。"
 }

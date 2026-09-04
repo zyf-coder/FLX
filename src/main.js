@@ -25,7 +25,7 @@ const UPDATE_URLS = [
 ];
 const PAGES_APK_URL = "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android.apk";
 const CDN_APK_URL = "https://cdn.jsdelivr.net/gh/zyf-coder/FLX@main/public/downloads/OnlyUs-Android.apk";
-const WEB_VERSION = "1.4.17";
+const WEB_VERSION = "2.1.1";
 const BOUND_EMAIL_ACCOUNTS = {
   a: {
     emailHash:
@@ -192,6 +192,29 @@ const videoPosterBlob = (file) => new Promise((resolve, reject) => {
   video.onerror = () => { URL.revokeObjectURL(url); reject(new Error("视频封面生成失败")); };
   video.src = url;
 });
+const mediaBaseName = (file) =>
+  file.name.replace(/\.[^.]+$/, "").toLowerCase();
+const extractMotionPhotoVideo = async (file) => {
+  if (!/image\/(jpeg|jpg)/i.test(file.type) && !/\.jpe?g$/i.test(file.name))
+    return null;
+  const buffer = await file.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  const startAt = Math.max(4, bytes.length - 40 * 1024 * 1024);
+  for (let index = startAt; index < bytes.length - 8; index += 1) {
+    if (
+      bytes[index] === 0x66 &&
+      bytes[index + 1] === 0x74 &&
+      bytes[index + 2] === 0x79 &&
+      bytes[index + 3] === 0x70
+    ) {
+      const boxStart = index - 4;
+      const boxSize = new DataView(buffer).getUint32(boxStart);
+      if (boxSize >= 8 && boxStart + boxSize <= bytes.length)
+        return new Blob([buffer.slice(boxStart)], { type: "video/mp4" });
+    }
+  }
+  return null;
+};
 const cropAvatar = async (file) => {
   const image = await imageFromFile(file);
   const side = Math.min(image.naturalWidth, image.naturalHeight);
@@ -282,7 +305,10 @@ const uploadStorageObject = async (path, blob, onProgress = () => {}) => {
           "POST",
           `${SUPABASE_URL}/storage/v1/object/couple-photos/${path}`
         );
-        xhr.timeout = 45000;
+        xhr.timeout = Math.min(
+          10 * 60 * 1000,
+          Math.max(90000, Math.ceil(blob.size / 50000) * 1000)
+        );
         xhr.setRequestHeader("apikey", SUPABASE_KEY);
         xhr.setRequestHeader("Authorization", `Bearer ${SUPABASE_KEY}`);
         xhr.setRequestHeader("x-couple-id", COUPLE_ID);
@@ -294,12 +320,16 @@ const uploadStorageObject = async (path, blob, onProgress = () => {}) => {
               Math.min(99, Math.round((event.loaded / event.total) * 100))
             );
         };
-        xhr.onload = () =>
-          xhr.status >= 200 && xhr.status < 300
-            ? resolve()
-            : reject(new Error(`上传失败：${xhr.status}`));
-        xhr.onerror = () => reject(new Error("网络连接中断"));
-        xhr.ontimeout = () => reject(new Error("上传超时"));
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) return resolve();
+          let detail = "";
+          try {
+            detail = JSON.parse(xhr.responseText || "{}").message || "";
+          } catch (error) {}
+          reject(new Error(detail || `云端存储上传失败（${xhr.status}）`));
+        };
+        xhr.onerror = () => reject(new Error("云端存储连接失败，请检查网络或云端项目状态"));
+        xhr.ontimeout = () => reject(new Error("上传超时，请保持网络连接后重试"));
         xhr.send(blob);
       });
       onProgress(100);
@@ -1348,20 +1378,54 @@ new Vue({
     },
     async photos(e) {
       const files = [...e.target.files];
+      const consumed = new Set();
+      const jobs = [];
+      files.forEach((file, index) => {
+        if (consumed.has(index)) return;
+        const isImage = file.type.startsWith("image/") || /\.(heic|heif|jpe?g|png)$/i.test(file.name);
+        if (isImage) {
+          const pairIndex = files.findIndex(
+            (candidate, candidateIndex) =>
+              candidateIndex !== index &&
+              !consumed.has(candidateIndex) &&
+              (candidate.type.startsWith("video/") || /\.(mov|mp4|m4v)$/i.test(candidate.name)) &&
+              mediaBaseName(candidate) === mediaBaseName(file)
+          );
+          if (pairIndex >= 0) {
+            consumed.add(index);
+            consumed.add(pairIndex);
+            jobs.push({ file, motionFile: files[pairIndex] });
+            return;
+          }
+        }
+        consumed.add(index);
+        jobs.push({ file, motionFile: null });
+      });
       let completed = 0;
-      for (const [index, file] of files.entries()) {
+      for (const [index, job] of jobs.entries()) {
+        const { file } = job;
         const queueId = createId();
         const preview = URL.createObjectURL(file);
         const pending = {
           id: queueId,
           preview,
-          type: file.type.startsWith("video/") ? "video" : "image",
+          type: file.type.startsWith("video/") || /\.(mp4|mov|webm|m4v)$/i.test(file.name) ? "video" : "image",
           title: file.name.replace(/\.[^.]+$/, ""),
           progress: 0,
           status: "正在处理",
         };
         this.uploadQueue.push(pending);
         try {
+          const originalIsVideo = file.type.startsWith("video/") || /\.(mp4|mov|webm|m4v)$/i.test(file.name);
+          const motionFile = job.motionFile || (!originalIsVideo ? await extractMotionPhotoVideo(file) : null);
+          const isLivePhoto = Boolean(motionFile && !originalIsVideo);
+          const mediaFile = motionFile || file;
+          if (isLivePhoto) {
+            URL.revokeObjectURL(pending.preview);
+            pending.preview = URL.createObjectURL(mediaFile);
+            pending.type = "video";
+            pending.status = "已识别动态照片";
+          }
           let photoTitle = "";
           try {
             const gps = await exifr.gps(file);
@@ -1384,12 +1448,14 @@ new Vue({
           } catch (error) {
             console.warn("照片地址读取失败", error);
           }
-          const isVideo = file.type.startsWith("video/");
-          if (isVideo && file.size > 100 * 1024 * 1024)
+          const isVideo = originalIsVideo || isLivePhoto;
+          if (isVideo && mediaFile.size > 100 * 1024 * 1024)
             throw new Error("视频大小不能超过 100MB");
-          const uploadBlob = isVideo ? file : await compressPhoto(file);
+          const uploadBlob = isVideo ? mediaFile : await compressPhoto(file);
           const id = createId();
-          const extension = isVideo
+          const extension = isLivePhoto
+            ? "mp4"
+            : isVideo
             ? (file.name.split(".").pop() || "mp4").toLowerCase()
             : "jpg";
           const storagePath = `${COUPLE_ID}/${id}.${extension}`;
@@ -1401,7 +1467,13 @@ new Vue({
           if (isVideo) {
             try {
               const posterPath = `${COUPLE_ID}/${id}-poster.jpg`;
-              await uploadStorageObject(posterPath, await videoPosterBlob(file));
+              let posterBlob;
+              try {
+                posterBlob = isLivePhoto ? await compressPhoto(file) : await videoPosterBlob(mediaFile);
+              } catch (error) {
+                posterBlob = await videoPosterBlob(mediaFile);
+              }
+              await uploadStorageObject(posterPath, posterBlob);
               poster = `${SUPABASE_URL}/storage/v1/object/public/couple-photos/${posterPath}`;
             } catch (error) { console.warn("视频封面生成失败", error); }
           }
@@ -1409,7 +1481,7 @@ new Vue({
             id,
             src: `${SUPABASE_URL}/storage/v1/object/public/couple-photos/${storagePath}`,
             storagePath,
-            type: isVideo ? "video" : "image",
+            type: isLivePhoto ? "live" : isVideo ? "video" : "image",
             poster,
             title: photoTitle,
             date: new Date().toISOString().slice(0, 10),
@@ -1418,7 +1490,7 @@ new Vue({
           completed += 1;
           pending.status = "上传成功";
           await new Promise((resolve) => setTimeout(resolve, 450));
-          URL.revokeObjectURL(preview);
+          URL.revokeObjectURL(pending.preview);
           this.uploadQueue = this.uploadQueue.filter(
             (item) => item.id !== queueId
           );
@@ -1676,7 +1748,7 @@ new Vue({
    <section class="home-grid"><div class="panel"><div class="title"><span><v-icon name="clock-3"/></span><div><b>爱情时间线</b><small>每个瞬间，都值得被记住</small></div><button @click="go('story')">查看全部 <v-icon name="chevron-right"/></button></div><love-timeline :items="state.stories.slice(-3)"/></div><div class="panel"><div class="title"><span><v-icon name="message-circle"/></span><div><b>悄悄话</b><small>只给你看的甜蜜留言</small></div><button @click="go('notes')">查看全部 <v-icon name="chevron-right"/></button></div><love-note v-for="n in latestNotes" :key="n.id" :note="n" :profile="state.profile"/></div></section>
    <section class="surprise"><v-icon name="gift"/><div><b>今日份的小惊喜</b><p>点击开启属于你们的浪漫时刻</p></div><button @click="rain">开启惊喜 <v-icon name="sparkles"/></button></section>
   </template>
-  <section class="page" v-if="tab==='album'"><div class="page-head"><div><h2>恋爱相册</h2><p>照片、视频和动态照片都可以收藏。</p></div><button class="primary" @click="$refs.file.click()"><v-icon name="camera"/>上传照片 / 视频</button></div><input hidden multiple accept="image/*,video/*,.heic,.heif" type="file" ref="file" @change="photos"><input hidden accept="image/*,video/*,.heic,.heif" type="file" ref="replaceFile" @change="replacePhotoFile"><div class="gallery"><figure class="upload-preview" :class="{failed:item.failed}" v-for="item in uploadQueue" :key="'upload-'+item.id"><video v-if="item.type==='video'" :src="item.preview" muted playsinline autoplay loop/><img v-else :src="item.preview"><div class="upload-progress"><b>{{item.progress}}%</b><span>{{item.status}}</span><i><em :style="{width:item.progress+'%'}"/></i></div></figure><figure class="photo-memory" v-for="p in sortedPhotos" :key="p.id"><video v-if="p.type==='video' || (!p.type && /\.(mp4|mov|webm|m4v)$/i.test(p.src))" :src="p.src" :poster="p.poster || runtimePosters[p.id]" crossorigin="anonymous" controls playsinline preload="auto" @loadeddata="ensureVideoPoster(p,$event)"/><img v-else :src="p.src"><figcaption v-if="p.title||p.description||p.date"><div><b v-if="p.title">{{p.title}}</b><span v-if="p.date">{{p.date}}</span></div><p v-if="p.description">{{p.description}}</p></figcaption><div class="photo-actions"><button title="编辑纪念文字" @click="editPhoto(p)"><v-icon name="pencil"/></button><button title="替换媒体" @click="replacePhoto(p)"><v-icon name="refresh-cw"/></button><button title="删除媒体" @click="removePhoto(p)"><v-icon name="trash-2"/></button></div></figure></div></section>
+  <section class="page" v-if="tab==='album'"><div class="page-head"><div><h2>恋爱相册</h2><p>照片、视频和动态照片都可以收藏。</p></div><button class="primary" @click="$refs.file.click()"><v-icon name="camera"/>上传照片 / 视频</button></div><input hidden multiple accept="image/*,video/*,.heic,.heif" type="file" ref="file" @change="photos"><input hidden accept="image/*,video/*,.heic,.heif" type="file" ref="replaceFile" @change="replacePhotoFile"><div class="gallery"><figure class="upload-preview" :class="{failed:item.failed}" v-for="item in uploadQueue" :key="'upload-'+item.id"><video v-if="item.type==='video'" :src="item.preview" muted playsinline autoplay loop/><img v-else :src="item.preview"><div class="upload-progress"><b>{{item.progress}}%</b><span>{{item.status}}</span><i><em :style="{width:item.progress+'%'}"/></i></div></figure><figure class="photo-memory" v-for="p in sortedPhotos" :key="p.id"><video v-if="p.type==='video' || p.type==='live' || (!p.type && /\.(mp4|mov|webm|m4v)$/i.test(p.src))" :src="p.src" :poster="p.poster || runtimePosters[p.id]" crossorigin="anonymous" controls playsinline preload="auto" :autoplay="p.type==='live'" :muted="p.type==='live'" :loop="p.type==='live'" @loadeddata="ensureVideoPoster(p,$event)"/><span v-if="p.type==='live'" class="live-photo-badge"><v-icon name="play" fill="currentColor"/>动态照片</span><img v-else-if="p.type!=='video' && !/\.(mp4|mov|webm|m4v)$/i.test(p.src||'')" :src="p.src"><figcaption v-if="p.title||p.description||p.date"><div><b v-if="p.title">{{p.title}}</b><span v-if="p.date">{{p.date}}</span></div><p v-if="p.description">{{p.description}}</p></figcaption><div class="photo-actions"><button title="编辑纪念文字" @click="editPhoto(p)"><v-icon name="pencil"/></button><button title="替换媒体" @click="replacePhoto(p)"><v-icon name="refresh-cw"/></button><button title="删除媒体" @click="removePhoto(p)"><v-icon name="trash-2"/></button></div></figure></div></section>
   <section class="page list-page" v-if="tab==='list'"><div class="page-head"><div><h2>恋爱清单</h2><p>想一起做的事，一件件变成共同回忆。</p></div><span class="list-progress">已完成 {{doneCount}} / {{state.todos.length}}</span></div><form class="addbar" @submit.prevent="addTodo"><v-icon name="sparkles"/><input ref="todo" placeholder="写下下一件想一起做的事"><button title="添加到清单"><v-icon name="plus"/><span>添加</span></button></form><div class="todo"><label v-for="t in state.todos" :key="t.id" :class="{completed:t.done}"><input type="checkbox" v-model="t.done"><i><v-icon name="check"/></i><span>{{t.text}}</span><button type="button" title="删除" @click.prevent="confirmDelete('todos',t.id,t.text)"><v-icon name="trash-2"/></button></label></div></section>
   <anniversary-page v-if="tab==='days'" :items="state.days" @add="modal='day'" @remove="removeAnniversary" @calendar="addToPhoneCalendar"/>
   <section class="page" v-if="tab==='notes'"><div class="page-head"><div><h2>悄悄话</h2><p>忙碌的日子里，也别忘了说爱你。</p></div></div><form class="noteform" @submit.prevent="addNote"><textarea ref="note" maxlength="120" placeholder="写一句只给 TA 看的话…"/><button><v-icon name="send"/>发送留言</button></form><love-note v-for="n in state.notes" :key="n.id" :note="n" :profile="state.profile"/></section>
