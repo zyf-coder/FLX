@@ -1,6 +1,6 @@
 {
-  "version": "2.1.1",
-  "versionCode": 33,
+  "version": "2.1.2",
+  "versionCode": 34,
   "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android.apk",
-  "notes": "支持安卓 Motion Photo 和 iPhone Live Photo 动态展示；优化视频上传超时与错误提示。"
+  "notes": "切换到新的 Supabase 云端项目；修复照片和视频上传失败；保留动态照片展示。"
 }

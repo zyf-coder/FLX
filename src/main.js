@@ -25,7 +25,7 @@ const UPDATE_URLS = [
 ];
 const PAGES_APK_URL = "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android.apk";
 const CDN_APK_URL = "https://cdn.jsdelivr.net/gh/zyf-coder/FLX@main/public/downloads/OnlyUs-Android.apk";
-const WEB_VERSION = "2.1.1";
+const WEB_VERSION = "2.1.2";
 const BOUND_EMAIL_ACCOUNTS = {
   a: {
     emailHash:
@@ -371,9 +371,14 @@ const indexedDb = {
 };
 const storage = {
   pending: Promise.resolve(),
+  remoteFound: false,
   async get() {
-    if (!cloud.enabled) return defaults;
+    if (!cloud.enabled) {
+      this.remoteFound = false;
+      return defaults;
+    }
     const remote = await cloud.get();
+    this.remoteFound = Boolean(remote);
     const cached = await indexedDb.get();
     if (remote) {
       const recovered = clone(remote);
@@ -776,6 +781,8 @@ new Vue({
     if (cloud.enabled) {
       this.cloudSync = "云端数据已同步";
       this.cloudPoller = setInterval(() => this.pullCloudState(), 5000);
+      // Seed a newly created cloud project from the recovered device snapshot.
+      if (!storage.remoteFound) this.persistState(this.state, true);
     }
     if (Capacitor.isNativePlatform()) {
       this.setupNativeBack();
