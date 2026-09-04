@@ -728,10 +728,21 @@ new Vue({
       console.warn("本机缓存读取超时，使用默认数据", error);
     }
     savedState = savedState || clone(defaults);
-    this.state = JSON.parse(
+    const parsedState = JSON.parse(
       JSON.stringify(savedState)
         .replaceAll("小满", "小张同学")
         .replaceAll("阿屿", "徐老师")
+    );
+    // 兼容旧缓存或异常中断留下的不完整数据，保证后续数组操作不会阻塞启动。
+    this.state = {
+      ...clone(defaults),
+      ...parsedState,
+      profile: { ...clone(defaults.profile), ...(parsedState.profile || {}) },
+    };
+    ["photos", "notes", "stories", "letters", "todos", "days"].forEach(
+      (key) => {
+        if (!Array.isArray(this.state[key])) this.state[key] = clone(defaults[key]);
+      }
     );
     indexedDb.set(this.state);
     let migratedPhotoPath = false;
