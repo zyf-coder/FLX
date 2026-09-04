@@ -25,7 +25,7 @@ const UPDATE_URLS = [
 ];
 const PAGES_APK_URL = "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android.apk";
 const CDN_APK_URL = "https://cdn.jsdelivr.net/gh/zyf-coder/FLX@main/public/downloads/OnlyUs-Android.apk";
-const WEB_VERSION = "2.1.2";
+const WEB_VERSION = "2.1.3";
 const BOUND_EMAIL_ACCOUNTS = {
   a: {
     emailHash:
