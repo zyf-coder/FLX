@@ -130,6 +130,14 @@ const defaults = {
   letters: [],
 };
 const clone = (value) => JSON.parse(JSON.stringify(value));
+// 启动阶段的网络或存储请求必须有上限，避免 WebView 永久停留在加载页。
+const withTimeout = (promise, ms) =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("请求超时")), ms)
+    ),
+  ]);
 const createId = () =>
   crypto.randomUUID?.() ||
   `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -346,6 +354,7 @@ const indexedDb = {
       const request = indexedDB.open("only-us", 1);
       request.onupgradeneeded = () => request.result.createObjectStore("data");
       request.onerror = () => resolve(null);
+      request.onblocked = () => resolve(null);
       request.onsuccess = () => {
         const query = request.result
           .transaction("data")
@@ -710,15 +719,15 @@ new Vue({
     },
   },
   async mounted() {
+    // 先从本机缓存恢复，保证 Android WebView 在断网或云端响应慢时也能进入。
     let savedState;
     try {
-      savedState = await storage.get();
+      savedState = await withTimeout(indexedDb.get(), 1500);
     } catch (error) {
-      savedState = await indexedDb.get();
-      savedState = savedState || clone(defaults);
-      this.cloudSync = "云端暂时不可用，已使用安全缓存";
-      console.warn("云端读取超时，先进入应用", error);
+      savedState = null;
+      console.warn("本机缓存读取超时，使用默认数据", error);
     }
+    savedState = savedState || clone(defaults);
     this.state = JSON.parse(
       JSON.stringify(savedState)
         .replaceAll("小满", "小张同学")
@@ -779,10 +788,10 @@ new Vue({
       }
     }
     if (cloud.enabled) {
-      this.cloudSync = "云端数据已同步";
+      this.cloudSync = "正在同步云端";
       this.cloudPoller = setInterval(() => this.pullCloudState(), 5000);
-      // Seed a newly created cloud project from the recovered device snapshot.
-      if (!storage.remoteFound) this.persistState(this.state, true);
+      // 云端同步放到后台，不阻塞首屏；仅在确认云端为空时才初始化数据。
+      this.syncInitialCloud();
     }
     if (Capacitor.isNativePlatform()) {
       this.setupNativeBack();
@@ -798,6 +807,44 @@ new Vue({
     clearInterval(this.loginPhotoTimer);
   },
   methods: {
+    async syncInitialCloud() {
+      try {
+        const remote = await withTimeout(cloud.get(), 9000);
+        storage.remoteFound = Boolean(remote);
+        if (remote) {
+          const recovered = clone(remote);
+          ["photos", "notes", "stories", "letters", "todos", "days"].forEach(
+            (key) => {
+              if (
+                Array.isArray(this.state[key]) &&
+                this.state[key].length > 0 &&
+                Array.isArray(recovered[key]) &&
+                recovered[key].length === 0
+              ) {
+                recovered[key] = clone(this.state[key]);
+              }
+            }
+          );
+          recovered.profile = {
+            ...this.state.profile,
+            ...(recovered.profile || {}),
+          };
+          recovered.meta = { ...this.state.meta, ...(recovered.meta || {}) };
+          this.applyingRemote = true;
+          this.state = recovered;
+          indexedDb.set(this.state);
+          this.lastCloudVersion = recovered._updatedAt || 0;
+          this.$nextTick(() => (this.applyingRemote = false));
+          this.cloudSync = "云端数据已同步";
+        } else {
+          this.cloudSync = "云端暂无数据，正在初始化";
+          await this.persistState(this.state, true);
+        }
+      } catch (error) {
+        this.cloudSync = "云端连接暂时中断，当前可正常使用";
+        console.warn("后台云端同步失败", error);
+      }
+    },
     async login() {
       const passcode = this.loginPasscode;
       const passwordHash =
