@@ -25,7 +25,7 @@ const UPDATE_URLS = [
 ];
 const PAGES_APK_URL = "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android.apk";
 const CDN_APK_URL = "https://cdn.jsdelivr.net/gh/zyf-coder/FLX@main/public/downloads/OnlyUs-Android.apk";
-const WEB_VERSION = "2.1.3";
+const WEB_VERSION = "2.1.4";
 const BOUND_EMAIL_ACCOUNTS = {
   a: {
     emailHash:
@@ -172,16 +172,22 @@ const canvasBlob = (canvas, type = "image/jpeg", quality = 0.84) =>
   );
 const compressPhoto = async (file, maxSize = 2048) => {
   if (!file.type.startsWith("image/") || file.type === "image/gif") return file;
-  const image = await imageFromFile(file);
-  const scale = Math.min(
-    1,
-    maxSize / Math.max(image.naturalWidth, image.naturalHeight)
-  );
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
-  canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
-  canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
-  return canvasBlob(canvas);
+  try {
+    const image = await imageFromFile(file);
+    const scale = Math.min(
+      1,
+      maxSize / Math.max(image.naturalWidth, image.naturalHeight)
+    );
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+    canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
+    return await canvasBlob(canvas);
+  } catch (error) {
+    // HEIC/WebP 等在 Android WebView 解码失败时，按原图上传，避免整条上传中断。
+    console.warn("图片压缩失败，按原图上传", error);
+    return file;
+  }
 };
 const videoPosterBlob = (file) => new Promise((resolve, reject) => {
   const video = document.createElement("video");
@@ -372,11 +378,49 @@ const indexedDb = {
         const query = request.result
           .transaction("data", "readwrite")
           .objectStore("data")
-          .put(value, "state");
+          .put(clone(value), "state");
         query.onsuccess = resolve;
         query.onerror = resolve;
       };
     }),
+};
+// 云端整份覆盖会丢掉“刚上传但云端写入失败”的照片，这里按 id 并集保住近期本机记录。
+const mergeListKeepRecentLocal = (localList, remoteList, remoteUpdatedAt, timeKey = "uploadedAt") => {
+  const local = Array.isArray(localList) ? localList : [];
+  const remote = Array.isArray(remoteList) ? remoteList : [];
+  const map = new Map();
+  remote.forEach((item) => {
+    if (item && item.id != null) map.set(String(item.id), item);
+  });
+  local.forEach((item) => {
+    if (!item || item.id == null) return;
+    const id = String(item.id);
+    const existing = map.get(id);
+    const localTime = Number(item[timeKey]) || Number(item.time) || 0;
+    if (!existing) {
+      // 仅保留近期本机新增，避免把远端已删除的旧记录永久复活。
+      if (!remoteUpdatedAt || localTime > remoteUpdatedAt - 10 * 60 * 1000) {
+        map.set(id, item);
+      }
+      return;
+    }
+    const remoteTime = Number(existing[timeKey]) || Number(existing.time) || 0;
+    if (localTime > remoteTime) map.set(id, item);
+  });
+  return [...map.values()];
+};
+const mergeCloudState = (local, remote) => {
+  const recovered = clone(remote);
+  const remoteUpdatedAt = Number(recovered._updatedAt) || 0;
+  ["photos", "notes", "stories", "letters", "todos", "days"].forEach((key) => {
+    if (Array.isArray(local?.[key]) && local[key].length > 0 && Array.isArray(recovered[key]) && recovered[key].length === 0) {
+      recovered[key] = clone(local[key]);
+    }
+  });
+  recovered.photos = mergeListKeepRecentLocal(local?.photos, recovered.photos, remoteUpdatedAt, "uploadedAt");
+  recovered.profile = { ...(local?.profile || {}), ...(recovered.profile || {}) };
+  recovered.meta = { ...(local?.meta || {}), ...(recovered.meta || {}) };
+  return recovered;
 };
 const storage = {
   pending: Promise.resolve(),
@@ -384,25 +428,18 @@ const storage = {
   async get() {
     if (!cloud.enabled) {
       this.remoteFound = false;
-      return defaults;
+      return localBackup.get() || clone(defaults);
     }
     const remote = await cloud.get();
     this.remoteFound = Boolean(remote);
-    const cached = await indexedDb.get();
-    if (remote) {
-      const recovered = clone(remote);
-      ["photos", "notes", "stories", "letters", "todos", "days"].forEach((key) => {
-        if (Array.isArray(cached?.[key]) && cached[key].length > 0 && Array.isArray(recovered[key]) && recovered[key].length === 0) {
-          recovered[key] = cached[key];
-        }
-      });
-      return recovered;
-    }
+    const cached = (await indexedDb.get()) || localBackup.get();
+    if (remote) return mergeCloudState(cached, remote);
     return cached || clone(defaults);
   },
   async set(value) {
     const snapshot = clone(value);
     snapshot._updatedAt = Date.now();
+    localBackup.set(snapshot);
     this.pending = this.pending.then(async () => {
       try {
         await cloud.set(snapshot);
@@ -823,29 +860,19 @@ new Vue({
         const remote = await withTimeout(cloud.get(), 9000);
         storage.remoteFound = Boolean(remote);
         if (remote) {
-          const recovered = clone(remote);
-          ["photos", "notes", "stories", "letters", "todos", "days"].forEach(
-            (key) => {
-              if (
-                Array.isArray(this.state[key]) &&
-                this.state[key].length > 0 &&
-                Array.isArray(recovered[key]) &&
-                recovered[key].length === 0
-              ) {
-                recovered[key] = clone(this.state[key]);
-              }
-            }
-          );
-          recovered.profile = {
-            ...this.state.profile,
-            ...(recovered.profile || {}),
-          };
-          recovered.meta = { ...this.state.meta, ...(recovered.meta || {}) };
+          const recovered = mergeCloudState(this.state, remote);
+          const remotePhotoCount = Array.isArray(remote.photos)
+            ? remote.photos.length
+            : 0;
           this.applyingRemote = true;
           this.state = recovered;
           indexedDb.set(this.state);
+          localBackup.set(this.state);
           this.lastCloudVersion = recovered._updatedAt || 0;
           this.$nextTick(() => (this.applyingRemote = false));
+          if ((recovered.photos?.length || 0) > remotePhotoCount) {
+            await this.persistState(this.state, true);
+          }
           this.cloudSync = "云端数据已同步";
         } else {
           this.cloudSync = "云端暂无数据，正在初始化";
@@ -1079,6 +1106,8 @@ new Vue({
       return result;
     },
     async pullCloudState() {
+      // 上传过程中不要被轮询整份覆盖，否则刚 push 的照片记录会丢。
+      if (this.uploadQueue.length || this.applyingRemote) return;
       try {
         const remote = await cloud.get();
         const remoteSession = remote?.meta?.sessions?.[this.loginUser];
@@ -1093,9 +1122,18 @@ new Vue({
         }
         if (remote && (remote._updatedAt || 0) > this.lastCloudVersion) {
           this.lastCloudVersion = remote._updatedAt || 0;
+          const remotePhotoCount = Array.isArray(remote.photos)
+            ? remote.photos.length
+            : 0;
+          const merged = mergeCloudState(this.state, remote);
           this.applyingRemote = true;
-          this.state = remote;
+          this.state = merged;
+          indexedDb.set(this.state);
+          localBackup.set(this.state);
           this.$nextTick(() => (this.applyingRemote = false));
+          if ((merged.photos?.length || 0) > remotePhotoCount) {
+            await this.persistState(this.state, true);
+          }
           this.cloudSync = "已获取云端最新数据";
         }
       } catch (error) {
@@ -1514,8 +1552,9 @@ new Vue({
             console.warn("照片地址读取失败", error);
           }
           const isVideo = originalIsVideo || isLivePhoto;
-          if (isVideo && mediaFile.size > 100 * 1024 * 1024)
-            throw new Error("视频大小不能超过 100MB");
+          // Supabase 免费版单文件上限 50MB，客户端直接拦住。
+          if (isVideo && mediaFile.size > 50 * 1024 * 1024)
+            throw new Error("视频大小不能超过 50MB");
           const uploadBlob = isVideo ? mediaFile : await compressPhoto(file);
           const id = createId();
           const extension = isLivePhoto
@@ -1552,6 +1591,8 @@ new Vue({
             date: new Date().toISOString().slice(0, 10),
             uploadedAt: Date.now(),
           });
+          // 立刻落盘，避免异步 watcher 未完成时被云端旧数据覆盖。
+          await this.persistState(this.state, true);
           completed += 1;
           pending.status = "上传成功";
           await new Promise((resolve) => setTimeout(resolve, 450));

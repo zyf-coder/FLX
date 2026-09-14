@@ -1,6 +1,6 @@
 {
-  "version": "2.1.3",
-  "versionCode": 35,
+  "version": "2.1.4",
+  "versionCode": 36,
   "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android.apk",
-  "notes": "修复 APP 启动卡在进入界面；增强旧缓存数据兼容；云端同步改为后台进行。"
+  "notes": "修复照片上传后云端记录被覆盖丢失；本机与云端数据合并同步；压缩失败按原图上传；视频大小上限调整为 50MB。"
 }
