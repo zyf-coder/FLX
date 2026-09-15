@@ -1,4 +1,15 @@
 @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Playfair+Display:ital,wght@1,600&display=swap");
+/* Android WebView 默认点击高亮（淡蓝色框）在这里关掉 */
+button,
+a,
+input[type="button"],
+input[type="submit"] {
+  -webkit-tap-highlight-color: transparent;
+}
+button:focus,
+button:active {
+  outline: none;
+}
 .app-toast {
   position: fixed;
   left: 50%;
@@ -1127,6 +1138,25 @@ main {
   object-fit: cover;
 }
 .gallery video { min-height: 180px; background: #171217; }
+.live-still {
+  display: block;
+  width: 100%;
+  max-height: 420px;
+  object-fit: cover;
+  background: #f6eef1;
+}
+.live-still-fallback {
+  min-height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #c4a8b2;
+  background: linear-gradient(145deg, #f7eef2, #efe2e8);
+}
+.live-still-fallback svg {
+  width: 36px;
+  height: 36px;
+}
 .live-photo-badge {
   position: absolute;
   left: 12px;
@@ -1136,11 +1166,18 @@ main {
   align-items: center;
   gap: 5px;
   padding: 6px 9px;
+  border: 0;
   border-radius: 4px;
   color: #fff;
   background: rgba(30, 24, 28, 0.66);
   backdrop-filter: blur(8px);
   font-size: 12px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+}
+.live-photo-badge.playing {
+  background: rgba(238, 79, 116, 0.88);
 }
 .live-photo-badge svg { width: 13px; height: 13px; }
 .upload-preview video { pointer-events: none; }
@@ -1977,6 +2014,25 @@ footer svg {
     align-items: center;
     box-shadow: 0 -8px 24px #3e263013;
   }
+  .bottom-nav button,
+  .bottom-nav button:focus,
+  .bottom-nav button:active,
+  .bottom-nav button:hover,
+  .bottom-nav .bottom-add,
+  .bottom-nav .bottom-add:focus,
+  .bottom-nav .bottom-add:active {
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+    tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .bottom-nav button,
+  .bottom-nav button:active,
+  .bottom-nav button:focus {
+    box-shadow: none;
+  }
   .bottom-nav button {
     position: relative;
     border: 0;
@@ -1995,6 +2051,8 @@ footer svg {
     overflow: visible;
     visibility: visible;
     opacity: 1;
+    -webkit-tap-highlight-color: transparent;
+    outline: none;
   }
   .bottom-nav button > span {
     display: block;

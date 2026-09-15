@@ -1,6 +1,6 @@
 {
-  "version": "2.1.4",
-  "versionCode": 36,
+  "version": "2.1.5",
+  "versionCode": 37,
   "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android.apk",
-  "notes": "修复照片上传后云端记录被覆盖丢失；本机与云端数据合并同步；压缩失败按原图上传；视频大小上限调整为 50MB。"
+  "notes": "动态照片默认显示静帧，点击徽章播放一遍；去掉底部菜单淡蓝色点击高亮。"
 }
