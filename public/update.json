@@ -1,6 +1,6 @@
 {
-  "version": "2.2.5",
-  "versionCode": 43,
-  "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android-2.2.5.apk",
-  "notes": "修复删除照片被云同步恢复；修复更新安装不再跳浏览器，直接拉起系统安装。"
+  "version": "2.2.6",
+  "versionCode": 44,
+  "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android-2.2.6.apk",
+  "notes": "背景音乐增加到 6 首浪漫曲目，支持点歌、上一首/下一首切换并记住选择。"
 }

@@ -14,9 +14,47 @@ import "./style.css";
 const UpdateInstaller = registerPlugin("UpdateInstaller");
 
 const PHOTO = `${import.meta.env.BASE_URL}temple-couple.jpg`;
-const MUSIC_PREVIEW = `${
-  import.meta.env.BASE_URL
-}audio/duo-xingyun-preview.m4a`;
+const MUSIC_BASE = `${import.meta.env.BASE_URL}audio`;
+const MUSIC_TRACKS = [
+  {
+    id: "duo-xingyun",
+    title: "多幸运",
+    artist: "韩安旭",
+    file: "duo-xingyun-preview.m4a",
+  },
+  {
+    id: "guang-yun-ting-jian",
+    title: "光影轻语",
+    artist: "Kevin MacLeod",
+    file: "guang-yun-ting-jian.mp3",
+  },
+  {
+    id: "xin-dong-xu-qu",
+    title: "心动序曲",
+    artist: "Kevin MacLeod",
+    file: "xin-dong-xu-qu.mp3",
+  },
+  {
+    id: "wei-xiao-xin-shi",
+    title: "微笑心事",
+    artist: "Kevin MacLeod",
+    file: "wei-xiao-xin-shi.mp3",
+  },
+  {
+    id: "chen-guang-lian-qu",
+    title: "晨光恋曲",
+    artist: "Chad Crouch",
+    file: "chen-guang-lian-qu.mp3",
+  },
+  {
+    id: "yuan-hang-qing-shu",
+    title: "远航情书",
+    artist: "Chad Crouch",
+    file: "yuan-hang-qing-shu.mp3",
+  },
+];
+const MUSIC_TRACK_KEY = "only-us-music-track";
+const MUSIC_URL = (file) => `${MUSIC_BASE}/${file}`;
 const LOCAL_BACKUP_KEY = "only-us-backup";
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -33,7 +71,7 @@ const apkUrlWithCacheBust = (url, version = "") =>
   `${url}${url.includes("?") ? "&" : "?"}v=${encodeURIComponent(
     version || "latest"
   )}&cb=${Date.now()}`;
-const WEB_VERSION = "2.2.5";
+const WEB_VERSION = "2.2.6";
 const BOUND_EMAIL_ACCOUNTS = {
   a: {
     emailHash:
@@ -789,6 +827,13 @@ new Vue({
     tab: "home",
     modal: null,
     music: false,
+    musicIndex: Math.max(
+      0,
+      MUSIC_TRACKS.findIndex(
+        (item) => item.id === localStorage.getItem(MUSIC_TRACK_KEY)
+      )
+    ),
+    musicPickerOpen: false,
     hearts: [],
     menu: false,
     exitHint: false,
@@ -871,6 +916,23 @@ new Vue({
           (Date.now() - new Date(this.state.profile.since).getTime()) / 86400000
         )
       );
+    },
+    musicTracks() {
+      return MUSIC_TRACKS;
+    },
+    currentTrack() {
+      return (
+        MUSIC_TRACKS[this.musicIndex] ||
+        MUSIC_TRACKS[0]
+      );
+    },
+    musicLabel() {
+      const track = this.currentTrack;
+      return track ? `${track.title} · ${track.artist}` : "背景音乐";
+    },
+    currentTrackSrc() {
+      const track = this.currentTrack;
+      return track ? MUSIC_URL(track.file) : "";
     },
     startDate() {
       return new Date(this.state.profile.since).toLocaleDateString("zh-CN", {
@@ -1755,6 +1817,32 @@ new Vue({
         console.warn("音乐播放失败", error);
       }
     },
+    selectMusicTrack(index) {
+      if (index < 0 || index >= MUSIC_TRACKS.length) return;
+      const wasPlaying = this.music;
+      this.musicIndex = index;
+      localStorage.setItem(MUSIC_TRACK_KEY, MUSIC_TRACKS[index].id);
+      this.musicPickerOpen = false;
+      this.$nextTick(() => {
+        const player = this.$refs.bgm;
+        if (!player) return;
+        player.load();
+        if (wasPlaying) {
+          player.play().catch((error) => {
+            this.music = false;
+            console.warn("音乐播放失败", error);
+          });
+        }
+      });
+    },
+    nextMusicTrack() {
+      this.selectMusicTrack((this.musicIndex + 1) % MUSIC_TRACKS.length);
+    },
+    prevMusicTrack() {
+      this.selectMusicTrack(
+        (this.musicIndex - 1 + MUSIC_TRACKS.length) % MUSIC_TRACKS.length
+      );
+    },
     go(t) {
       window.scrollTo(0, 0);
       this.tab = t;
@@ -2479,7 +2567,7 @@ new Vue({
  <div class="app-toast exit-toast" v-if="exitHint"><v-icon name="info"/><span>再返回一次退出 APP</span></div>
  <transition name="toast"><div class="app-toast" :class="'toast-'+appNoticeType" v-if="appNotice"><v-icon :name="appNoticeType==='error'?'circle-alert':appNoticeType==='info'?'info':'check-circle-2'"/><span>{{appNotice}}</span></div></transition>
  <span v-for="h in hearts" :key="h.id" class="rain" :style="{left:h.left+'%',animationDelay:h.delay+'s',fontSize:h.size+'px'}">♥</span>
- <header><button class="brand" @click="go('home')"><span><v-icon name="heart" fill="currentColor"/></span><b>Only Us</b><small>我们的恋爱空间</small></button><nav><button v-for="n in nav" :key="n[0]" :class="{active:tab===n[0]}" @click="go(n[0])"><v-icon :name="n[1]"/>{{n[2]}}</button></nav><div class="tools"><span class="music-label" v-if="music"><i></i>多幸运 · 韩安旭</span><span class="music-hearts" v-if="music" aria-hidden="true"><i v-for="n in 6" :key="n" :style="{'--heart-index':n}">♥</i></span><button :title="music?'暂停《多幸运》':'播放《多幸运》'" @click="toggleMusic"><v-icon :name="music?'music-2':'volume-x'"/></button><button title="爱心雨" @click="rain"><v-icon name="sparkles"/></button><button class="hamb" @click="menu=!menu"><v-icon name="menu"/></button></div></header><audio ref="bgm" :src="'${MUSIC_PREVIEW}'" preload="none" loop @pause="music=false" @play="music=true"></audio>
+ <header><button class="brand" @click="go('home')"><span><v-icon name="heart" fill="currentColor"/></span><b>Only Us</b><small>我们的恋爱空间</small></button><nav><button v-for="n in nav" :key="n[0]" :class="{active:tab===n[0]}" @click="go(n[0])"><v-icon :name="n[1]"/>{{n[2]}}</button></nav><div class="tools"><span class="music-label" :class="{on:music}" @click="musicPickerOpen=!musicPickerOpen"><i></i>{{musicLabel}}<v-icon name="chevron-down"/></span><span class="music-hearts" v-if="music" aria-hidden="true"><i v-for="n in 6" :key="n" :style="{'--heart-index':n}">♥</i></span><button class="music-prev" title="上一首" @click="prevMusicTrack"><v-icon name="skip-back"/></button><button :title="music?'暂停背景音乐':'播放背景音乐'" @click="toggleMusic"><v-icon :name="music?'music-2':'volume-x'"/></button><button class="music-next" title="下一首" @click="nextMusicTrack"><v-icon name="skip-forward"/></button><button title="爱心雨" @click="rain"><v-icon name="sparkles"/></button><button class="hamb" @click="menu=!menu"><v-icon name="menu"/></button></div></header><div class="music-picker" v-if="musicPickerOpen"><header><b>选择背景音乐</b><button type="button" title="关闭" @click="musicPickerOpen=false"><v-icon name="x"/></button></header><button v-for="(t,i) in musicTracks" :key="t.id" type="button" class="music-item" :class="{active:i===musicIndex}" @click="selectMusicTrack(i)"><span class="music-item-icon"><v-icon :name="i===musicIndex && music ? 'pause' : 'music-2'"/></span><span class="music-item-text"><b>{{t.title}}</b><small>{{t.artist}}</small></span><em v-if="i===musicIndex">正在播放</em></button></div><audio ref="bgm" :src="currentTrackSrc" preload="metadata" loop @pause="music=false" @play="music=true"></audio>
  <div class="mobile-menu" v-if="menu"><button v-for="n in nav" :key="n[0]" @click="go(n[0])"><v-icon :name="n[1]"/>{{n[2]}}</button></div>
  <nav class="bottom-nav"><button :class="{active:tab==='home'}" @click="go('home')"><v-icon name="house"/><span>首页</span></button><button :class="{active:tab==='list'}" @click="go('list')"><v-icon name="list-checks"/><span>清单</span></button><button class="bottom-add" title="快捷添加" @click="quickAddOpen=true"><v-icon name="plus"/></button><button :class="{active:tab==='future'}" @click="go('future')"><v-icon name="mail"/><span>未来信</span></button><button :class="{active:tab==='me'}" @click="go('me')"><i v-if="updateInfo"/><v-icon name="circle-user-round"/><span>我的</span></button></nav>
  <main>
