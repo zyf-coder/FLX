@@ -1,6 +1,6 @@
 {
-  "version": "2.2.7",
-  "versionCode": 45,
-  "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android-2.2.7.apk",
-  "notes": "背景音乐改为完整曲目并全部打包进 APP 本地播放，不依赖外部链接；共 6 首可切换。"
+  "version": "2.2.8",
+  "versionCode": 46,
+  "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android-2.2.8.apk",
+  "notes": "更新改为原生下载并直接拉起系统安装；需要时自动打开“允许安装应用”设置。"
 }
