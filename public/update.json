@@ -1,6 +1,6 @@
 {
-  "version": "2.2.0",
-  "versionCode": 38,
+  "version": "2.2.1",
+  "versionCode": 39,
   "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android.apk",
-  "notes": "新增甜蜜乐园：心情打卡、习惯打卡、兑换券、爱的承诺、默契问答、愿望瓶、恋爱足迹、成就徽章、恋爱数据与每日情话。"
+  "notes": "修复旧动态照片无法查看：缺封面自动抽帧，封面失效自动回退到视频预览。"
 }

@@ -25,7 +25,7 @@ const UPDATE_URLS = [
 ];
 const PAGES_APK_URL = "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android.apk";
 const CDN_APK_URL = "https://cdn.jsdelivr.net/gh/zyf-coder/FLX@main/public/downloads/OnlyUs-Android.apk";
-const WEB_VERSION = "2.2.0";
+const WEB_VERSION = "2.2.1";
 const BOUND_EMAIL_ACCOUNTS = {
   a: {
     emailHash:
@@ -259,6 +259,30 @@ const videoPosterBlob = (file) => new Promise((resolve, reject) => {
   video.onerror = () => { URL.revokeObjectURL(url); reject(new Error("视频封面生成失败")); };
   video.src = url;
 });
+const videoPosterFromSrc = (src) =>
+  new Promise((resolve, reject) => {
+    const video = document.createElement("video");
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = "auto";
+    video.crossOrigin = "anonymous";
+    video.onloadeddata = () => {
+      video.currentTime = Math.min(0.05, (video.duration || 0.1) / 2 || 0.05);
+    };
+    video.onseeked = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 360;
+        canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", 0.82));
+      } catch (error) {
+        reject(error);
+      }
+    };
+    video.onerror = () => reject(new Error("动态照片视频读取失败"));
+    video.src = src;
+  });
 const mediaBaseName = (file) =>
   file.name.replace(/\.[^.]+$/, "").toLowerCase();
 const extractMotionPhotoVideo = async (file) => {
@@ -978,6 +1002,7 @@ new Vue({
         (this.loginPhotoIndex + 1) % this.loginPhotos.length;
     }, 6500);
     if (migratedPhotoPath) this.persistState(this.state, true);
+    this.repairAllLiveStills();
     this.lastCloudVersion = this.state._updatedAt || 0;
     if (this.authenticated) {
       const remoteSession = this.state.meta.sessions[this.loginUser];
@@ -1766,18 +1791,77 @@ new Vue({
       if (completed) this.showNotice(`${completed} 个照片或视频已保存`);
       e.target.value = "";
     },
+    liveStill(photo) {
+      return this.runtimePosters[photo.id] || photo.poster || photo.still || "";
+    },
+    isMotionSrc(src) {
+      return /\.(mp4|mov|webm|m4v)($|\?)/i.test(src || "");
+    },
+    async repairLiveStill(photo, force = false) {
+      if (!photo || photo.type !== "live") return;
+      const current = this.liveStill(photo);
+      if (!force && current) return;
+      // 源本身是图片时直接当静帧
+      if (!this.isMotionSrc(photo.src) && photo.src) {
+        this.$set(this.runtimePosters, photo.id, photo.src);
+        return;
+      }
+      const candidates = [photo.still, photo.poster, photo.src].filter(Boolean);
+      for (const item of candidates) {
+        try {
+          if (item === photo.src && this.isMotionSrc(item)) {
+            const frame = await videoPosterFromSrc(item);
+            this.$set(this.runtimePosters, photo.id, frame);
+            return;
+          }
+          if (!this.isMotionSrc(item)) {
+            await new Promise((resolve, reject) => {
+              const probe = new Image();
+              probe.onload = resolve;
+              probe.onerror = reject;
+              probe.src = item;
+            });
+            this.$set(this.runtimePosters, photo.id, item);
+            return;
+          }
+        } catch (error) {
+          /* try next candidate */
+        }
+      }
+      this.$set(this.runtimePosters, photo.id, "");
+    },
+    async repairAllLiveStills() {
+      for (const photo of this.state.photos || []) {
+        if (photo.type === "live" && !this.liveStill(photo)) {
+          await this.repairLiveStill(photo, true);
+        }
+      }
+    },
     toggleLivePhoto(photo) {
       if (this.livePlaying[photo.id]) this.stopLivePhoto(photo);
       else this.playLivePhoto(photo);
     },
     playLivePhoto(photo) {
+      if (!this.isMotionSrc(photo.src) && !photo.storagePath) {
+        this.showNotice("这张动态照片没有可播放片段", "info");
+        return;
+      }
       this.$set(this.livePlaying, photo.id, true);
       this.$nextTick(() => {
         const ref = this.$refs[`live-${photo.id}`];
         const video = Array.isArray(ref) ? ref[0] : ref;
-        if (!video) return;
+        if (!video) {
+          this.stopLivePhoto(photo);
+          return;
+        }
         video.currentTime = 0;
-        video.play().catch(() => {});
+        const playPromise = video.play();
+        if (playPromise && playPromise.catch) {
+          playPromise.catch(() => {
+            this.showNotice("动态播放失败，已显示封面", "info");
+            this.stopLivePhoto(photo);
+          });
+        }
       });
     },
     stopLivePhoto(photo) {
@@ -2183,7 +2267,7 @@ new Vue({
    <section class="home-grid"><div class="panel"><div class="title"><span><v-icon name="clock-3"/></span><div><b>爱情时间线</b><small>每个瞬间，都值得被记住</small></div><button @click="go('story')">查看全部 <v-icon name="chevron-right"/></button></div><love-timeline :items="state.stories.slice(-3)"/></div><div class="panel"><div class="title"><span><v-icon name="message-circle"/></span><div><b>悄悄话</b><small>只给你看的甜蜜留言</small></div><button @click="go('notes')">查看全部 <v-icon name="chevron-right"/></button></div><love-note v-for="n in latestNotes" :key="n.id" :note="n" :profile="state.profile"/></div></section>
    <section class="surprise"><v-icon name="gift"/><div><b>今日份的小惊喜</b><p>点击开启属于你们的浪漫时刻</p></div><button @click="rain">开启惊喜 <v-icon name="sparkles"/></button></section>
   </template>
-  <section class="page" v-if="tab==='album'"><div class="page-head"><div><h2>恋爱相册</h2><p>照片、视频和动态照片都可以收藏。</p></div><button class="primary" @click="$refs.file.click()"><v-icon name="camera"/>上传照片 / 视频</button></div><input hidden multiple accept="image/*,video/*,.heic,.heif" type="file" ref="file" @change="photos"><input hidden accept="image/*,video/*,.heic,.heif" type="file" ref="replaceFile" @change="replacePhotoFile"><div class="gallery"><figure class="upload-preview" :class="{failed:item.failed}" v-for="item in uploadQueue" :key="'upload-'+item.id"><video v-if="item.type==='video'" :src="item.preview" muted playsinline autoplay loop/><img v-else :src="item.preview"><div class="upload-progress"><b>{{item.progress}}%</b><span>{{item.status}}</span><i><em :style="{width:item.progress+'%'}"/></i></div></figure><figure class="photo-memory" v-for="p in sortedPhotos" :key="p.id"><template v-if="p.type==='live'"><img v-if="!livePlaying[p.id] && (p.poster || runtimePosters[p.id])" class="live-still" :src="p.poster || runtimePosters[p.id]" alt="动态照片"><div v-else-if="!livePlaying[p.id]" class="live-still live-still-fallback"><v-icon name="image"/></div><video v-else :ref="'live-'+p.id" :src="p.src" :poster="p.poster || runtimePosters[p.id]" muted playsinline preload="auto" @ended="stopLivePhoto(p)"/><button type="button" class="live-photo-badge" :class="{playing:livePlaying[p.id]}" @click.stop="toggleLivePhoto(p)"><v-icon :name="livePlaying[p.id]?'pause':'play'" fill="currentColor"/>{{livePlaying[p.id]?'播放中':'动态照片'}}</button></template><video v-else-if="p.type==='video' || (!p.type && /\.(mp4|mov|webm|m4v)$/i.test(p.src))" :src="p.src" :poster="p.poster || runtimePosters[p.id]" crossorigin="anonymous" controls playsinline preload="auto" @loadeddata="ensureVideoPoster(p,$event)"/><img v-else :src="p.src"><figcaption v-if="p.title||p.description||p.date"><div><b v-if="p.title">{{p.title}}</b><span v-if="p.date">{{p.date}}</span></div><p v-if="p.description">{{p.description}}</p></figcaption><div class="photo-actions"><button title="编辑纪念文字" @click="editPhoto(p)"><v-icon name="pencil"/></button><button title="替换媒体" @click="replacePhoto(p)"><v-icon name="refresh-cw"/></button><button title="删除媒体" @click="removePhoto(p)"><v-icon name="trash-2"/></button></div></figure></div></section>
+  <section class="page" v-if="tab==='album'"><div class="page-head"><div><h2>恋爱相册</h2><p>照片、视频和动态照片都可以收藏。</p></div><button class="primary" @click="$refs.file.click()"><v-icon name="camera"/>上传照片 / 视频</button></div><input hidden multiple accept="image/*,video/*,.heic,.heif" type="file" ref="file" @change="photos"><input hidden accept="image/*,video/*,.heic,.heif" type="file" ref="replaceFile" @change="replacePhotoFile"><div class="gallery"><figure class="upload-preview" :class="{failed:item.failed}" v-for="item in uploadQueue" :key="'upload-'+item.id"><video v-if="item.type==='video'" :src="item.preview" muted playsinline autoplay loop/><img v-else :src="item.preview"><div class="upload-progress"><b>{{item.progress}}%</b><span>{{item.status}}</span><i><em :style="{width:item.progress+'%'}"/></i></div></figure><figure class="photo-memory" v-for="p in sortedPhotos" :key="p.id"><template v-if="p.type==='live'"><img v-if="!livePlaying[p.id] && liveStill(p)" class="live-still" :src="liveStill(p)" alt="动态照片" @error="repairLiveStill(p,true)"><video v-else-if="!livePlaying[p.id] && isMotionSrc(p.src)" class="live-still live-still-fallback" :src="p.src" muted playsinline preload="metadata" controls @loadeddata="ensureVideoPoster(p,$event)"/><div v-else-if="!livePlaying[p.id]" class="live-still live-still-fallback"><v-icon name="image"/></div><video v-else :ref="'live-'+p.id" :src="p.src" :poster="liveStill(p)" muted playsinline preload="auto" @ended="stopLivePhoto(p)" @error="stopLivePhoto(p)"/><button type="button" class="live-photo-badge" :class="{playing:livePlaying[p.id]}" @click.stop="toggleLivePhoto(p)"><v-icon :name="livePlaying[p.id]?'pause':'play'" fill="currentColor"/>{{livePlaying[p.id]?'播放中':'动态照片'}}</button></template><video v-else-if="p.type==='video' || (!p.type && /\.(mp4|mov|webm|m4v)$/i.test(p.src))" :src="p.src" :poster="p.poster || runtimePosters[p.id]" crossorigin="anonymous" controls playsinline preload="auto" @loadeddata="ensureVideoPoster(p,$event)"/><img v-else :src="p.src"><figcaption v-if="p.title||p.description||p.date"><div><b v-if="p.title">{{p.title}}</b><span v-if="p.date">{{p.date}}</span></div><p v-if="p.description">{{p.description}}</p></figcaption><div class="photo-actions"><button title="编辑纪念文字" @click="editPhoto(p)"><v-icon name="pencil"/></button><button title="替换媒体" @click="replacePhoto(p)"><v-icon name="refresh-cw"/></button><button title="删除媒体" @click="removePhoto(p)"><v-icon name="trash-2"/></button></div></figure></div></section>
   <section class="page list-page" v-if="tab==='list'"><div class="page-head"><div><h2>恋爱清单</h2><p>想一起做的事，一件件变成共同回忆。</p></div><span class="list-progress">已完成 {{doneCount}} / {{state.todos.length}}</span></div><form class="addbar" @submit.prevent="addTodo"><v-icon name="sparkles"/><input ref="todo" placeholder="写下下一件想一起做的事"><button title="添加到清单"><v-icon name="plus"/><span>添加</span></button></form><div class="todo"><label v-for="t in state.todos" :key="t.id" :class="{completed:t.done}"><input type="checkbox" v-model="t.done"><i><v-icon name="check"/></i><span>{{t.text}}</span><button type="button" title="删除" @click.prevent="confirmDelete('todos',t.id,t.text)"><v-icon name="trash-2"/></button></label></div></section>
   <anniversary-page v-if="tab==='days'" :items="state.days" @add="modal='day'" @remove="removeAnniversary" @calendar="addToPhoneCalendar"/>
   <section class="page" v-if="tab==='notes'"><div class="page-head"><div><h2>悄悄话</h2><p>忙碌的日子里，也别忘了说爱你。</p></div></div><form class="noteform" @submit.prevent="addNote"><textarea ref="note" maxlength="120" placeholder="写一句只给 TA 看的话…"/><button><v-icon name="send"/>发送留言</button></form><love-note v-for="n in state.notes" :key="n.id" :note="n" :profile="state.profile"/></section>
