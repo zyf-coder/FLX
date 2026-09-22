@@ -1,6 +1,6 @@
 {
-  "version": "2.2.9",
-  "versionCode": 47,
-  "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android-2.2.9.apk",
-  "notes": "背景音乐精简为多幸运、荷塘月色，均已本地打包。"
+  "version": "2.2.10",
+  "versionCode": 48,
+  "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android-2.2.10.apk",
+  "notes": "修复更新安装拉起失败：多路安装启动、真实错误提示；请为 Only Us 单独允许安装未知应用。"
 }
