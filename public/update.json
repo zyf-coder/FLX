@@ -1,6 +1,6 @@
 {
-  "version": "2.2.1",
-  "versionCode": 39,
+  "version": "2.2.2",
+  "versionCode": 40,
   "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android.apk",
-  "notes": "修复旧动态照片无法查看：缺封面自动抽帧，封面失效自动回退到视频预览。"
+  "notes": "修复动态照片显示错乱；更新改为应用内下载 0-100% 进度，下载完成后一键安装，不再反复跳浏览器。"
 }

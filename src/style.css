@@ -1,4 +1,4 @@
-﻿@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Playfair+Display:ital,wght@1,600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Playfair+Display:ital,wght@1,600&display=swap");
 /* Android WebView 榛樿鐐瑰嚮楂樹寒锛堟贰钃濊壊妗嗭級鍦ㄨ繖閲屽叧鎺?*/
 button,
 a,
@@ -1138,48 +1138,50 @@ main {
   object-fit: cover;
 }
 .gallery video { min-height: 180px; background: #171217; }
-.live-still {
+.live-memory .live-frame {
+  position: relative;
+  width: 100%;
+  min-height: 220px;
+  background: #171217;
+}
+.live-memory .live-video {
   display: block;
   width: 100%;
   max-height: 420px;
-  object-fit: cover;
-  background: #f6eef1;
-}
-.live-still-fallback {
   min-height: 220px;
+  object-fit: cover;
+  background: #171217;
+}
+.update-dl {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #fff4f8;
+  border: 1px solid #ffd7e5;
+}
+.update-dl-head {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  justify-content: center;
-  color: #c4a8b2;
-  background: linear-gradient(145deg, #f7eef2, #efe2e8);
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: #6a3d50;
 }
-.live-still-fallback svg {
-  width: 36px;
-  height: 36px;
+.update-dl-bar {
+  display: block;
+  height: 10px;
+  border-radius: 999px;
+  background: #f0d7e1;
+  overflow: hidden;
 }
-.live-photo-badge {
-  position: absolute;
-  left: 12px;
-  top: 12px;
-  z-index: 2;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 6px 9px;
-  border: 0;
-  border-radius: 4px;
-  color: #fff;
-  background: rgba(30, 24, 28, 0.66);
-  backdrop-filter: blur(8px);
-  font-size: 12px;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  outline: none;
+.update-dl-bar em {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--pink), var(--deep));
+  transition: width 0.15s linear;
 }
-.live-photo-badge.playing {
-  background: rgba(238, 79, 116, 0.88);
-}
-.live-photo-badge svg { width: 13px; height: 13px; }
 .upload-preview video { pointer-events: none; }
 .gallery video::-webkit-media-controls-play-button {
   transform: scale(.78);
@@ -1237,7 +1239,7 @@ main {
   font-size: 11px;
   color: #9b8890;
 }
-.gallery figure > button,
+.gallery figure > .photo-actions button,
 .daygrid article > button {
   position: absolute;
   right: 8px;
@@ -1252,9 +1254,60 @@ main {
   opacity: 0;
   transition: 0.2s;
 }
-.gallery figure:hover > button,
+.gallery figure:hover > .photo-actions button,
+.gallery figure:focus-within > .photo-actions button,
 .daygrid article:hover > button {
   opacity: 1;
+}
+.live-memory .live-frame {
+  position: relative;
+  width: 100%;
+  min-height: 220px;
+  background: #171217;
+  overflow: hidden;
+}
+.live-memory .live-video {
+  display: block;
+  width: 100%;
+  max-height: 420px;
+  min-height: 220px;
+  object-fit: cover;
+  background: #171217;
+}
+.live-photo-badge {
+  position: absolute !important;
+  left: 12px !important;
+  right: auto !important;
+  top: 12px !important;
+  z-index: 3 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px;
+  width: max-content !important;
+  height: auto !important;
+  max-width: calc(100% - 24px);
+  white-space: nowrap;
+  padding: 6px 10px !important;
+  border: 0;
+  border-radius: 999px;
+  color: #fff !important;
+  background: rgba(30, 24, 28, 0.72) !important;
+  font-size: 12px;
+  line-height: 1.2;
+  cursor: pointer;
+  opacity: 1 !important;
+  box-shadow: none !important;
+  transform: none !important;
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+}
+.live-photo-badge.playing {
+  background: rgba(238, 79, 116, 0.9) !important;
+}
+.live-photo-badge svg {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
 }
 .upload-preview {
   overflow: hidden;
