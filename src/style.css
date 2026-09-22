@@ -1,5 +1,5 @@
-@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Playfair+Display:ital,wght@1,600&display=swap");
-/* Android WebView 默认点击高亮（淡蓝色框）在这里关掉 */
+﻿@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Playfair+Display:ital,wght@1,600&display=swap");
+/* Android WebView 榛樿鐐瑰嚮楂樹寒锛堟贰钃濊壊妗嗭級鍦ㄨ繖閲屽叧鎺?*/
 button,
 a,
 input[type="button"],
@@ -3667,3 +3667,455 @@ footer svg {
     padding-top: 14px;
   }
 }
+
+/* Sweet park */
+.qicon.rose {
+  background: #ffe4ee;
+  color: var(--pink);
+}
+.quote-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--deep);
+  border-radius: 999px;
+  padding: 10px 14px;
+  font-size: 13px;
+  -webkit-tap-highlight-color: transparent;
+}
+.love-quote-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 0 0 18px;
+  padding: 18px 20px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #fff0f5, #ffe8f1);
+  border: 1px solid #ffd3e2;
+  color: #6a3d50;
+}
+.love-quote-card svg {
+  width: 22px;
+  height: 22px;
+  color: var(--pink);
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+.love-quote-card p {
+  margin: 0;
+  font-family: "Playfair Display", "Noto Sans SC", serif;
+  font-size: 18px;
+  line-height: 1.55;
+}
+.sweet-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  margin-bottom: 16px;
+  scrollbar-width: none;
+}
+.sweet-tabs::-webkit-scrollbar {
+  display: none;
+}
+.sweet-tabs button {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: #806c74;
+  border-radius: 999px;
+  padding: 10px 14px;
+  font-size: 13px;
+  -webkit-tap-highlight-color: transparent;
+}
+.sweet-tabs button.active {
+  background: var(--pink);
+  border-color: var(--pink);
+  color: #fff;
+  font-weight: 600;
+}
+.sweet-tabs button svg {
+  width: 16px;
+  height: 16px;
+}
+.sweet-panel {
+  display: grid;
+  gap: 14px;
+}
+.soft-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 14px 16px;
+}
+.mood-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.mood-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 16px;
+  padding: 12px 8px;
+  color: #7a6570;
+  -webkit-tap-highlight-color: transparent;
+}
+.mood-chip span {
+  font-size: 24px;
+}
+.mood-chip small {
+  font-size: 11px;
+}
+.mood-chip.active {
+  border-color: var(--pink);
+  background: #fff0f5;
+  color: var(--deep);
+}
+.streak-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: #fff4e8;
+  color: #b56a1f;
+  font-size: 13px;
+}
+.streak-pill b {
+  font-size: 16px;
+}
+.checkin-grid,
+.stat-grid,
+.habit-grid,
+.coupon-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.soft-card header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.soft-card .who {
+  font-weight: 700;
+}
+.soft-card em {
+  font-style: normal;
+  font-size: 22px;
+}
+.soft-card .muted {
+  color: #b4a0a8;
+}
+.mini-list,
+.promise-list,
+.wish-list,
+.place-list,
+.quiz-list {
+  display: grid;
+  gap: 10px;
+}
+.mini-list article,
+.promise-list article,
+.wish-list article,
+.place-list article {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px 14px;
+}
+.mini-list article {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 12px;
+}
+.mini-list article b {
+  grid-column: 1;
+}
+.mini-list article span {
+  grid-column: 2;
+  color: #a89099;
+  font-size: 12px;
+}
+.mini-list article p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #7a6570;
+  font-size: 13px;
+}
+.habit-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+}
+.habit-card.on {
+  border-color: #f3c1d4;
+  background: #fff7fa;
+}
+.habit-icon {
+  font-size: 28px;
+}
+.habit-card button,
+.coupon-actions button {
+  margin-top: 6px;
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 14px;
+  background: var(--pink);
+  color: #fff;
+  font-size: 13px;
+  -webkit-tap-highlight-color: transparent;
+}
+.habit-card.on button {
+  background: #f0d7e1;
+  color: var(--deep);
+}
+.hint {
+  margin: 0;
+  color: #a89099;
+  font-size: 13px;
+  text-align: center;
+}
+.coupon-form,
+.quiz-form,
+.place-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px;
+}
+.coupon-form label,
+.quiz-form label,
+.place-form label {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  color: #8a7280;
+}
+.coupon-form label.wide,
+.quiz-form label,
+.place-form label.wide,
+.coupon-form button,
+.quiz-form button,
+.place-form button {
+  grid-column: 1 / -1;
+}
+.coupon-form input,
+.quiz-form input,
+.place-form input,
+.addbar input,
+.quiz-guess input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  outline: 0;
+  background: #fffafb;
+}
+.coupon-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: #fff;
+  border: 1px dashed #f0b7cd;
+  border-radius: 16px;
+  padding: 14px;
+  background-image: radial-gradient(circle at 0 50%, transparent 8px, #fff 9px);
+}
+.coupon-card.empty {
+  opacity: 0.55;
+  filter: grayscale(0.4);
+}
+.coupon-icon {
+  font-size: 28px;
+}
+.coupon-card p {
+  margin: 4px 0;
+  color: #8a7280;
+  font-size: 12px;
+}
+.coupon-card small {
+  color: var(--deep);
+}
+.coupon-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.coupon-actions .icon-only,
+.icon-only {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
+  background: #fff0f4;
+  color: var(--deep);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.promise-list article label,
+.wish-list article label {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+}
+.promise-list article input,
+.wish-list article input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+}
+.promise-list article i,
+.wish-list article i {
+  width: 22px;
+  height: 22px;
+  border: 1.5px solid #e5c6d2;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: transparent;
+}
+.promise-list article input:checked + i,
+.wish-list article input:checked + i {
+  background: var(--pink);
+  border-color: var(--pink);
+  color: #fff;
+}
+.promise-list article.done b,
+.wish-list article.done b {
+  text-decoration: line-through;
+  color: #a89099;
+}
+.promise-list article small,
+.wish-list article small,
+.place-list article small {
+  display: block;
+  color: #a89099;
+  font-size: 12px;
+  margin-top: 4px;
+}
+.quiz-card {
+  display: grid;
+  gap: 10px;
+}
+.quiz-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: start;
+}
+.quiz-top small {
+  color: #a89099;
+  white-space: nowrap;
+}
+.quiz-guess {
+  display: flex;
+  gap: 8px;
+}
+.quiz-guess button {
+  flex: 0 0 auto;
+}
+.quiz-answer {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #fff0f5;
+  color: var(--deep);
+  font-weight: 600;
+}
+.place-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--pink);
+  box-shadow: 0 0 0 6px #ffe4ee;
+  flex: 0 0 auto;
+}
+.badge-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.badge-card {
+  text-align: center;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 18px 12px;
+}
+.badge-card.got {
+  border-color: #ffd0e0;
+  background: linear-gradient(180deg, #fff7fa, #fff);
+}
+.badge-icon {
+  font-size: 32px;
+  margin-bottom: 8px;
+}
+.badge-card small {
+  display: block;
+  color: #a89099;
+  margin-top: 4px;
+}
+.stat-card {
+  text-align: center;
+}
+.stat-card strong {
+  display: block;
+  font-size: 28px;
+  color: var(--deep);
+}
+.stat-card strong small {
+  font-size: 12px;
+  margin-left: 4px;
+  color: #a89099;
+}
+.stat-card span {
+  color: #8a7280;
+  font-size: 13px;
+}
+.quote-box p {
+  margin: 8px 0 0;
+  color: var(--deep);
+  font-size: 16px;
+}
+@media (max-width: 640px) {
+  .checkin-grid,
+  .stat-grid,
+  .habit-grid,
+  .coupon-grid,
+  .badge-grid {
+    grid-template-columns: 1fr;
+  }
+  .mood-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .coupon-form,
+  .quiz-form,
+  .place-form {
+    grid-template-columns: 1fr;
+  }
+}
+
