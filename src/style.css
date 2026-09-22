@@ -3119,6 +3119,96 @@ footer svg {
   color: #866773;
   white-space: nowrap;
   margin-right: 5px;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #fff;
+  max-width: 170px;
+  overflow: hidden;
+}
+.music-label svg {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+}
+.music-label.on {
+  color: var(--deep);
+  border-color: #f0c3d5;
+  background: #fff4f8;
+}
+.music-picker {
+  position: fixed;
+  right: 16px;
+  top: 64px;
+  z-index: 120;
+  width: min(300px, calc(100vw - 24px));
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 16px 40px rgba(62, 48, 54, 0.16);
+  overflow: hidden;
+}
+.music-picker header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.music-picker header button {
+  border: 0;
+  background: transparent;
+  color: #9b8890;
+}
+.music-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 0;
+  background: #fff;
+  text-align: left;
+}
+.music-item + .music-item {
+  border-top: 1px solid #f6ebef;
+}
+.music-item.active {
+  background: #fff4f8;
+}
+.music-item-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #ffe8f0;
+  color: var(--pink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+.music-item-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.music-item-text b {
+  font-size: 14px;
+}
+.music-item-text small {
+  color: #a89099;
+}
+.music-item em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--deep);
+}
+.music-prev,
+.music-next {
+  width: 34px;
+  height: 34px;
 }
 .music-label i {
   width: 6px;
