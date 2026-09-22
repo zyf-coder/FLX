@@ -25,9 +25,15 @@ const UPDATE_URLS = [
   "https://zyf-coder.github.io/FLX/update.json",
   "https://cdn.jsdelivr.net/gh/zyf-coder/FLX@main/public/update.json",
 ];
-const PAGES_APK_URL = "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android.apk";
+const PAGES_APK_BASE = "https://zyf-coder.github.io/FLX/downloads";
+const PAGES_APK_URL = `${PAGES_APK_BASE}/OnlyUs-Android.apk`;
 const CDN_APK_URL = "https://cdn.jsdelivr.net/gh/zyf-coder/FLX@main/public/downloads/OnlyUs-Android.apk";
-const WEB_VERSION = "2.2.2";
+const UPDATE_REMINDER_KEY = "only-us-update-reminder";
+const apkUrlWithCacheBust = (url, version = "") =>
+  `${url}${url.includes("?") ? "&" : "?"}v=${encodeURIComponent(
+    version || "latest"
+  )}&cb=${Date.now()}`;
+const WEB_VERSION = "2.2.3";
 const BOUND_EMAIL_ACCOUNTS = {
   a: {
     emailHash:
@@ -58,12 +64,20 @@ const APP_PASSCODES = {
   b: import.meta.env.VITE_APP_PASSCODE_B || "xudan",
 };
 const isNewerVersion = (latest, current) => {
-  const latestIsDateVersion = /^\d{8}\.\d+$/.test(String(latest));
-  const currentIsDateVersion = /^\d{8}\.\d+$/.test(String(current));
+  const normalize = (value) =>
+    String(value || "")
+      .trim()
+      .replace(/^v/i, "");
+  const leftRaw = normalize(latest);
+  const rightRaw = normalize(current);
+  if (!leftRaw || !rightRaw) return false;
+  if (leftRaw === rightRaw) return false;
+  const latestIsDateVersion = /^\d{8}\.\d+$/.test(leftRaw);
+  const currentIsDateVersion = /^\d{8}\.\d+$/.test(rightRaw);
   if (currentIsDateVersion && !latestIsDateVersion) return true;
   if (!currentIsDateVersion && latestIsDateVersion) return false;
-  const left = String(latest).split(".").map(Number);
-  const right = String(current).split(".").map(Number);
+  const left = leftRaw.split(".").map(Number);
+  const right = rightRaw.split(".").map(Number);
   for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
     const difference = (left[index] || 0) - (right[index] || 0);
     if (difference) return difference > 0;
@@ -1452,8 +1466,8 @@ new Vue({
       try {
         const appInfo = Capacitor.isNativePlatform()
           ? await NativeApp.getInfo()
-          : { version: WEB_VERSION };
-        this.currentVersion = appInfo.version;
+          : { version: WEB_VERSION, build: "0" };
+        this.currentVersion = appInfo.version || WEB_VERSION;
         let update = null;
         for (const url of UPDATE_URLS) {
           try {
@@ -1466,7 +1480,9 @@ new Vue({
             clearTimeout(timer);
             if (!response.ok) continue;
             const candidate = await response.json();
-            candidate.androidUrl = candidate.androidUrl || CDN_APK_URL;
+            if (!candidate?.version) continue;
+            candidate.androidUrl =
+              candidate.androidUrl || `${PAGES_APK_BASE}/OnlyUs-Android-${candidate.version}.apk`;
             if (!update || isNewerVersion(candidate.version, update.version))
               update = candidate;
           } catch (error) {
@@ -1474,9 +1490,30 @@ new Vue({
           }
         }
         if (!update) throw new Error("所有更新源均不可用");
-        if (isNewerVersion(update.version, appInfo.version)) {
+        const installedBuild = Number(appInfo.build || 0);
+        const latestBuild = Number(update.versionCode || 0);
+        const hasNewerBuild =
+          latestBuild > 0 && installedBuild > 0 && latestBuild > installedBuild;
+        const hasNewerName = isNewerVersion(update.version, this.currentVersion);
+        if (hasNewerName || hasNewerBuild) {
+          if (this.updateInfo?.version !== update.version) {
+            this.updateApkUri = "";
+            this.updateApkPath = "";
+            this.updateProgress = 0;
+          }
           this.updateInfo = update;
-          this.updateModal = true;
+          const reminded = localStorage.getItem(UPDATE_REMINDER_KEY) || "";
+          const [remindedVersion, remindedAt] = reminded.split("@");
+          const remindAge = Date.now() - Number(remindedAt || 0);
+          const alreadyReminded =
+            remindedVersion === String(update.version) && remindAge < 24 * 3600 * 1000;
+          if (manual || !alreadyReminded) {
+            this.updateModal = true;
+            localStorage.setItem(
+              UPDATE_REMINDER_KEY,
+              `${update.version}@${Date.now()}`
+            );
+          }
         } else if (manual) {
           this.showNotice("当前已是最新版本");
         }
@@ -1492,11 +1529,16 @@ new Vue({
         return;
       }
       if (this.updateDownloading) return;
+      const version = String(this.updateInfo.version || "");
+      // 版本化文件名 + 缓存穿透，避免 jsDelivr/浏览器缓存吐出旧包
       const candidates = [
+        `${PAGES_APK_BASE}/OnlyUs-Android-${version}.apk`,
         this.updateInfo.androidUrl,
         PAGES_APK_URL,
         CDN_APK_URL,
-      ].filter(Boolean);
+      ]
+        .filter(Boolean)
+        .map((url) => apkUrlWithCacheBust(url, version));
       let downloadUrl = candidates[0];
       for (const candidate of candidates) {
         try {
@@ -1524,7 +1566,7 @@ new Vue({
         });
         this.updateProgress = 100;
         const base64 = await blobToBase64(blob);
-        const fileName = `OnlyUs-Android-${this.updateInfo.version}.apk`;
+        const fileName = `OnlyUs-Android-${version || "update"}.apk`;
         const result = await Filesystem.writeFile({
           path: fileName,
           data: base64,
@@ -1537,7 +1579,9 @@ new Vue({
       } catch (error) {
         console.warn("应用内下载失败，回退浏览器", error);
         this.showNotice("下载失败，已打开浏览器下载");
-        await Browser.open({ url: downloadUrl });
+        await Browser.open({
+          url: apkUrlWithCacheBust(PAGES_APK_URL, version),
+        });
       } finally {
         this.updateDownloading = false;
       }
@@ -2416,7 +2460,7 @@ new Vue({
  <div class="overlay confirm-overlay" v-if="logoutConfirm"><div class="confirm-dialog"><span><v-icon name="log-out"/></span><h3>退出当前账号？</h3><p>退出后需要重新验证密码才能进入。</p><div><button @click="logoutConfirm=false">取消</button><button class="danger" @click="confirmLogout">确认退出</button></div></div></div>
  <div class="overlay account-overlay" v-if="accountModal==='security'"><div class="account-dialog security-dialog"><button class="account-close" @click="accountModal=''"><v-icon name="x"/></button><button class="account-back" v-if="accountView!=='menu'" @click="accountView='menu';accountStep='form'"><v-icon name="chevron-left"/>返回</button><span class="account-icon"><v-icon :name="accountView==='password'?'key-round':accountView==='email'?'mail':'shield-check'"/></span><h3>{{accountView==='password'?'修改密码':accountView==='email'?'绑定邮箱':'账号与安全'}}</h3><p v-if="accountView==='menu'">管理当前账号的登录与验证方式</p><div class="security-menu" v-if="accountView==='menu'"><button @click="openAccountSection('password')"><i><v-icon name="key-round"/></i><span><b>修改密码</b><small>定期更换密码，保护账号安全</small></span><v-icon name="chevron-right"/></button><button @click="openAccountSection('email')"><i><v-icon name="mail"/></i><span><b>绑定邮箱</b><small>当前绑定 {{state.meta.accounts[loginUser]?.emailMasked||'未绑定'}}</small></span><v-icon name="chevron-right"/></button></div><form v-else-if="accountView==='password'" class="account-fields" @submit.prevent="changePassword"><input required name="current" type="password" placeholder="当前密码"><input required name="next" type="password" minlength="6" placeholder="新密码（至少6位）"><input required name="confirmNext" type="password" minlength="6" placeholder="再次输入新密码"><button class="primary">保存新密码</button></form><template v-else><div v-if="accountStep==='form'" class="account-fields"><p class="bound-phone">已绑定邮箱： {{state.meta.accounts[loginUser]?.emailMasked}}</p><input v-model="emailInput" inputmode="email" placeholder="输入新的邮箱地址"><button class="primary" @click="sendEmailOtp">发送验证码</button></div><div v-else class="account-fields"><p>验证码已发送至 {{emailInput}}</p><input v-model="otpInput" inputmode="numeric" maxlength="8" placeholder="邮箱验证码"><button class="primary" @click="verifyEmailOtp">确认绑定</button></div></template></div></div>
  <div class="overlay confirm-overlay" v-if="deleteConfirm"><div class="confirm-dialog"><span><v-icon name="trash-2"/></span><h3>{{deleteConfirm.title}}</h3><p>{{deleteConfirm.text}}</p><div><button @click="deleteConfirm=null">取消</button><button class="danger" @click="runDeleteConfirm">确认删除</button></div></div></div>
- <div class="overlay update-overlay" v-if="updateModal&&updateInfo"><div class="update-dialog"><div class="update-art"><v-icon name="sparkles"/><span>NEW</span></div><button class="close" title="稍后更新" @click="updateModal=false"><v-icon name="x"/></button><small>ONLY US UPDATE</small><h3>发现新版本 {{updateInfo.version}}</h3><p>本次更新</p><ul><li v-for="line in updateInfo.notes.split('；')" :key="line"><v-icon name="check-circle-2"/>{{line}}</li></ul><div class="update-dl" v-if="updateDownloading || updateApkUri"><div class="update-dl-head"><b>{{updateApkUri ? '下载完成' : '正在下载更新'}}</b><span>{{updateProgress}}%</span></div><i class="update-dl-bar"><em :style="{width:updateProgress+'%'}"/></i></div><div><button class="later" @click="updateModal=false">暂不更新</button><button class="primary" :disabled="updateDownloading" @click="installUpdate"><v-icon :name="updateDownloading?'loader-circle':updateApkUri?'package-check':'download'"/>{{updateDownloading?'下载中 '+updateProgress+'%':updateApkUri?'点击安装':'下载并安装'}}</button></div></div></div>
+ <div class="overlay update-overlay" v-if="updateModal&&updateInfo"><div class="update-dialog"><div class="update-art"><v-icon name="sparkles"/><span>NEW</span></div><button class="close" title="稍后更新" @click="updateModal=false"><v-icon name="x"/></button><small>ONLY US UPDATE</small><h3>发现新版本 {{updateInfo.version}}</h3><p class="update-current">当前版本 {{currentVersion}} · 目标 {{updateInfo.version}}</p><p>本次更新</p><ul><li v-for="line in updateInfo.notes.split('；')" :key="line"><v-icon name="check-circle-2"/>{{line}}</li></ul><div class="update-dl" v-if="updateDownloading || updateApkUri"><div class="update-dl-head"><b>{{updateApkUri ? '下载完成' : '正在下载更新'}}</b><span>{{updateProgress}}%</span></div><i class="update-dl-bar"><em :style="{width:updateProgress+'%'}"/></i></div><div><button class="later" @click="updateModal=false">暂不更新</button><button class="primary" :disabled="updateDownloading" @click="installUpdate"><v-icon :name="updateDownloading?'loader-circle':updateApkUri?'package-check':'download'"/>{{updateDownloading?'下载中 '+updateProgress+'%':updateApkUri?'点击安装':'下载并安装'}}</button></div></div></div>
  <div class="overlay quick-overlay" v-if="quickAddOpen" @mousedown.self="quickAddOpen=false"><div class="quick-sheet"><i/><h3>记录此刻</h3><div><button @click="chooseQuickAdd('photo')"><span><v-icon name="camera"/></span>上传照片</button><button @click="chooseQuickAdd('notes')"><span><v-icon name="message-circle"/></span>写悄悄话</button><button @click="chooseQuickAdd('day')"><span><v-icon name="calendar-heart"/></span>加纪念日</button><button @click="chooseQuickAdd('future')"><span><v-icon name="mail"/></span>写未来信</button></div><button class="sheet-cancel" @click="quickAddOpen=false">取消</button></div></div>
 </div><div class="loading load-error" v-else-if="loadError"><v-icon name="cloud-off"/><b>暂时无法读取云端数据</b><span>请检查网络后重试，避免显示不准确的数据。</span><button @click="reloadPage">重新连接</button></div><div class="loading" v-else><v-icon name="heart" fill="currentColor"/>正在打开我们的故事…</div>`,
 });
