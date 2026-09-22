@@ -1,6 +1,6 @@
 {
-  "version": "2.2.6",
-  "versionCode": 44,
-  "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android-2.2.6.apk",
-  "notes": "背景音乐增加到 6 首浪漫曲目，支持点歌、上一首/下一首切换并记住选择。"
+  "version": "2.2.7",
+  "versionCode": 45,
+  "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android-2.2.7.apk",
+  "notes": "背景音乐改为完整曲目并全部打包进 APP 本地播放，不依赖外部链接；共 6 首可切换。"
 }
