@@ -25,7 +25,7 @@ const UPDATE_URLS = [
 ];
 const PAGES_APK_URL = "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android.apk";
 const CDN_APK_URL = "https://cdn.jsdelivr.net/gh/zyf-coder/FLX@main/public/downloads/OnlyUs-Android.apk";
-const WEB_VERSION = "2.1.5";
+const WEB_VERSION = "2.2.0";
 const BOUND_EMAIL_ACCOUNTS = {
   a: {
     emailHash:
@@ -128,7 +128,60 @@ const defaults = {
     },
   ],
   letters: [],
+  checkins: [],
+  coupons: [
+    { id: 1, title: "拥抱券", icon: "🤗", note: "无条件大大的拥抱", count: 5, used: 0 },
+    { id: 2, title: "按摩券", icon: "💆", note: "肩颈放松 15 分钟", count: 3, used: 0 },
+    { id: 3, title: "撒娇券", icon: "🥺", note: "可以任性撒娇一次", count: 3, used: 0 },
+    { id: 4, title: "美食券", icon: "🍜", note: "陪吃一顿想吃的", count: 3, used: 0 },
+    { id: 5, title: "心愿券", icon: "✨", note: "一个不过分的小愿望", count: 2, used: 0 },
+  ],
+  promises: [],
+  quiz: [],
+  wishes: [],
+  places: [],
+  habits: [
+    { id: 1, name: "早安吻", icon: "🌅", log: [] },
+    { id: 2, name: "说爱你", icon: "💗", log: [] },
+    { id: 3, name: "晚安吻", icon: "🌙", log: [] },
+  ],
 };
+const STATE_LIST_KEYS = [
+  "photos",
+  "notes",
+  "stories",
+  "letters",
+  "todos",
+  "days",
+  "checkins",
+  "coupons",
+  "promises",
+  "quiz",
+  "wishes",
+  "places",
+  "habits",
+];
+const LOVE_QUOTES = [
+  "想和你一起浪费很多个明天。",
+  "世界很大，刚好我们遇见了。",
+  "你的名字，是我写过最短的情书。",
+  "今天也比昨天更喜欢你一点。",
+  "想把所有温柔都留给你。",
+  "见不到你的日子，都是倒计时。",
+  "和你在一起的每天都值得纪念。",
+  "余生请多指教，亲爱的。",
+  "你笑的时候，全世界都在发光。",
+  "遇见你之后，生活开始有了颜色。",
+];
+const MOODS = [
+  { id: "love", emoji: "🥰", label: "超心动" },
+  { id: "happy", emoji: "😊", label: "开心" },
+  { id: "calm", emoji: "😌", label: "平静" },
+  { id: "tired", emoji: "😪", label: "疲惫" },
+  { id: "sad", emoji: "🥺", label: "想抱抱" },
+  { id: "angry", emoji: "😤", label: "小生气" },
+];
+const todayKey = () => new Date().toISOString().slice(0, 10);
 const clone = (value) => JSON.parse(JSON.stringify(value));
 // 启动阶段的网络或存储请求必须有上限，避免 WebView 永久停留在加载页。
 const withTimeout = (promise, ms) =>
@@ -412,7 +465,7 @@ const mergeListKeepRecentLocal = (localList, remoteList, remoteUpdatedAt, timeKe
 const mergeCloudState = (local, remote) => {
   const recovered = clone(remote);
   const remoteUpdatedAt = Number(recovered._updatedAt) || 0;
-  ["photos", "notes", "stories", "letters", "todos", "days"].forEach((key) => {
+  STATE_LIST_KEYS.forEach((key) => {
     if (Array.isArray(local?.[key]) && local[key].length > 0 && Array.isArray(recovered[key]) && recovered[key].length === 0) {
       recovered[key] = clone(local[key]);
     }
@@ -680,6 +733,16 @@ new Vue({
     photoEditing: null,
     photoDraft: null,
     replaceTarget: null,
+    sweetTab: "checkin",
+    checkinMood: "love",
+    checkinNote: "",
+    couponDraft: { title: "", icon: "🎁", note: "", count: 1 },
+    promiseText: "",
+    quizDraft: { question: "", answer: "" },
+    quizGuess: {},
+    wishText: "",
+    placeDraft: { name: "", date: "", note: "" },
+    loveQuote: LOVE_QUOTES[new Date().getDate() % LOVE_QUOTES.length],
     dayCalendar: "solar",
     editingDay: null,
     loginPhotoIndex: 0,
@@ -698,6 +761,7 @@ new Vue({
       ["notes", "message-circle", "留言"],
       ["story", "book-heart", "故事"],
       ["me", "circle-user-round", "我的"],
+      ["sweet", "heart-handshake", "甜蜜"],
     ],
   },
   computed: {
@@ -744,6 +808,95 @@ new Vue({
         (a, b) => (Number(a.uploadedAt) || 0) - (Number(b.uploadedAt) || 0)
       );
     },
+    todayKey() {
+      return todayKey();
+    },
+    moods() {
+      return MOODS;
+    },
+    myTodayCheckin() {
+      return this.state.checkins.find(
+        (c) => c.date === todayKey() && c.user === this.loginUser
+      );
+    },
+    partnerTodayCheckin() {
+      const other = this.loginUser === "a" ? "b" : "a";
+      return this.state.checkins.find(
+        (c) => c.date === todayKey() && c.user === other
+      );
+    },
+    checkinStreak() {
+      const dates = [
+        ...new Set(
+          this.state.checkins.map((c) => c.date).filter(Boolean)
+        ),
+      ].sort();
+      if (!dates.length) return 0;
+      let streak = 1;
+      for (let i = dates.length - 1; i > 0; i -= 1) {
+        const diff =
+          (new Date(dates[i]).getTime() - new Date(dates[i - 1]).getTime()) /
+          86400000;
+        if (diff === 1) streak += 1;
+        else break;
+      }
+      if (dates[dates.length - 1] !== todayKey()) {
+        const gap =
+          (Date.now() - new Date(dates[dates.length - 1]).getTime()) / 86400000;
+        if (gap > 1) return 0;
+      }
+      return streak;
+    },
+    loveBadges() {
+      const photos = this.state.photos.length;
+      const notes = this.state.notes.length;
+      const checkins = this.state.checkins.length;
+      const todosDone = this.doneCount;
+      const wishes = this.state.wishes.filter((w) => w.done).length;
+      const days = this.loveDays;
+      return [
+        { id: "day1", icon: "🌱", name: "初见", desc: "相爱第 1 天", got: days >= 1 },
+        { id: "day100", icon: "🌸", name: "百日", desc: "相爱满 100 天", got: days >= 100 },
+        { id: "day365", icon: "🌟", name: "一周年", desc: "相爱满一年", got: days >= 365 },
+        { id: "day1000", icon: "💍", name: "千日", desc: "相爱满 1000 天", got: days >= 1000 },
+        { id: "photo10", icon: "📷", name: "收藏家", desc: "相册满 10 张", got: photos >= 10 },
+        { id: "note20", icon: "💌", name: "话唠", desc: "悄悄话 20 条", got: notes >= 20 },
+        { id: "check30", icon: "🔥", name: "打卡达人", desc: "累计打卡 30 次", got: checkins >= 30 },
+        { id: "streak7", icon: "⚡", name: "连续七日", desc: "连续打卡 7 天", got: this.checkinStreak >= 7 },
+        { id: "todo10", icon: "✅", name: "清单猎人", desc: "完成 10 件小事", got: todosDone >= 10 },
+        { id: "wish5", icon: "🌠", name: "愿望实现", desc: "实现 5 个愿望", got: wishes >= 5 },
+      ];
+    },
+    gotBadgeCount() {
+      return this.loveBadges.filter((b) => b.got).length;
+    },
+    couponStats() {
+      return this.state.coupons.map((c) => ({
+        ...c,
+        left: Math.max(0, (c.count || 0) - (c.used || 0)),
+      }));
+    },
+    pendingQuiz() {
+      return this.state.quiz.filter((q) => !q.revealed);
+    },
+    habitToday() {
+      const key = todayKey();
+      return this.state.habits.map((h) => ({
+        ...h,
+        doneToday: (h.log || []).includes(key),
+        streak: this.habitStreak(h),
+      }));
+    },
+    sweetStats() {
+      return [
+        { label: "相爱天数", value: this.loveDays, unit: "天" },
+        { label: "打卡次数", value: this.state.checkins.length, unit: "次" },
+        { label: "连续打卡", value: this.checkinStreak, unit: "天" },
+        { label: "获得徽章", value: this.gotBadgeCount, unit: "枚" },
+        { label: "足迹地点", value: this.state.places.length, unit: "处" },
+        { label: "完成愿望", value: this.state.wishes.filter((w) => w.done).length, unit: "个" },
+      ];
+    },
   },
   watch: {
     state: {
@@ -777,7 +930,7 @@ new Vue({
       ...parsedState,
       profile: { ...clone(defaults.profile), ...(parsedState.profile || {}) },
     };
-    ["photos", "notes", "stories", "letters", "todos", "days"].forEach(
+    STATE_LIST_KEYS.forEach(
       (key) => {
         if (!Array.isArray(this.state[key])) this.state[key] = clone(defaults[key]);
       }
@@ -1858,6 +2011,161 @@ new Vue({
       r.onload = () => (this.state = JSON.parse(r.result));
       r.readAsText(e.target.files[0]);
     },
+    refreshLoveQuote() {
+      this.loveQuote =
+        LOVE_QUOTES[Math.floor(Math.random() * LOVE_QUOTES.length)];
+    },
+    userName(user) {
+      return user === "a" ? this.state.profile.a : this.state.profile.b;
+    },
+    checkinOf(user) {
+      return this.state.checkins.find(
+        (c) => c.date === todayKey() && c.user === user
+      );
+    },
+    submitCheckin() {
+      if (this.myTodayCheckin) {
+        this.showNotice("今天已经打过卡啦", "info");
+        return;
+      }
+      const mood = MOODS.find((m) => m.id === this.checkinMood) || MOODS[0];
+      this.state.checkins.push({
+        id: createId(),
+        date: todayKey(),
+        user: this.loginUser,
+        mood: mood.id,
+        emoji: mood.emoji,
+        note: this.checkinNote.trim(),
+        time: Date.now(),
+      });
+      this.checkinNote = "";
+      this.rain();
+      this.showNotice("今日心情已记下");
+    },
+    habitStreak(habit) {
+      const log = [...new Set(habit.log || [])].sort();
+      if (!log.length) return 0;
+      if (log[log.length - 1] !== todayKey()) return 0;
+      let streak = 1;
+      for (let i = log.length - 1; i > 0; i -= 1) {
+        const diff =
+          (new Date(log[i]).getTime() - new Date(log[i - 1]).getTime()) /
+          86400000;
+        if (diff === 1) streak += 1;
+        else break;
+      }
+      return streak;
+    },
+    toggleHabit(habit) {
+      const key = todayKey();
+      const log = [...new Set(habit.log || [])];
+      const index = log.indexOf(key);
+      if (index >= 0) {
+        log.splice(index, 1);
+        this.$set(habit, "log", log);
+        this.showNotice(`「${habit.name}」已取消今日打卡`, "info");
+        return;
+      }
+      log.push(key);
+      this.$set(habit, "log", log);
+      this.showNotice(`「${habit.name}」打卡成功`);
+    },
+    addCoupon() {
+      const title = this.couponDraft.title.trim();
+      if (!title) return this.showNotice("请填写券的名称", "info");
+      this.state.coupons.push({
+        id: createId(),
+        title,
+        icon: this.couponDraft.icon || "🎁",
+        note: this.couponDraft.note.trim(),
+        count: Math.max(1, Number(this.couponDraft.count) || 1),
+        used: 0,
+        createdAt: Date.now(),
+      });
+      this.couponDraft = { title: "", icon: "🎁", note: "", count: 1 };
+      this.showNotice("兑换券已添加");
+    },
+    useCoupon(coupon) {
+      const original = this.state.coupons.find((c) => c.id === coupon.id);
+      if (!original) return;
+      if ((original.used || 0) >= (original.count || 0)) {
+        this.showNotice("这张券用完啦", "info");
+        return;
+      }
+      this.$set(original, "used", (original.used || 0) + 1);
+      this.rain();
+      this.showNotice(`「${original.title}」使用成功`);
+    },
+    addPromise() {
+      const text = this.promiseText.trim();
+      if (!text) return this.showNotice("写下你们的承诺吧", "info");
+      this.state.promises.push({
+        id: createId(),
+        text,
+        from: this.loginUser,
+        date: todayKey(),
+        done: false,
+        createdAt: Date.now(),
+      });
+      this.promiseText = "";
+      this.showNotice("承诺已记下，说到要做到哦");
+    },
+    addQuiz() {
+      const question = this.quizDraft.question.trim();
+      const answer = this.quizDraft.answer.trim();
+      if (!question || !answer) {
+        return this.showNotice("问题和答案都要写哦", "info");
+      }
+      this.state.quiz.push({
+        id: createId(),
+        question,
+        answer,
+        author: this.loginUser,
+        guess: "",
+        revealed: false,
+        createdAt: Date.now(),
+      });
+      this.quizDraft = { question: "", answer: "" };
+      this.showNotice("默契题已提交，等 TA 来猜");
+    },
+    revealQuiz(q) {
+      this.$set(q, "revealed", true);
+      const guess = (this.quizGuess[q.id] || "").trim();
+      if (guess && guess === q.answer) {
+        this.showNotice("心有灵犀！答案正确");
+        this.rain();
+      } else if (guess) {
+        this.showNotice(`答错啦，正确答案是「${q.answer}」`, "info");
+      } else {
+        this.showNotice(`正确答案是「${q.answer}」`, "info");
+      }
+    },
+    addWish() {
+      const text = this.wishText.trim();
+      if (!text) return this.showNotice("写下一个小愿望", "info");
+      this.state.wishes.push({
+        id: createId(),
+        text,
+        by: this.loginUser,
+        done: false,
+        createdAt: Date.now(),
+      });
+      this.wishText = "";
+      this.showNotice("愿望已收进瓶子");
+    },
+    addPlace() {
+      const name = this.placeDraft.name.trim();
+      if (!name) return this.showNotice("请填写地点名称", "info");
+      this.state.places.push({
+        id: createId(),
+        name,
+        date: this.placeDraft.date || todayKey(),
+        note: this.placeDraft.note.trim(),
+        createdAt: Date.now(),
+      });
+      this.placeDraft = { name: "", date: "", note: "" };
+      this.showNotice("足迹已记录");
+    },
   },
   template: `
 <div class="login-screen" v-if="!authenticated"><transition name="login-fade"><img :key="loginPhoto" :src="loginPhoto"/></transition><div class="login-shade"/><div class="login-meteors" aria-hidden="true"><i v-for="n in 7" :key="n" :style="{'--meteor':n}"/></div><section class="login-panel"><span class="login-mark"><v-icon name="heart" fill="currentColor"/></span><small>ONLY US</small><h1>欢迎回到我们的故事</h1><p>选择身份并完成验证</p><div class="login-users"><button type="button" :class="{active:loginUser==='a'}" @click="selectLoginUser('a')"><i><img v-if="state.profile.avatarA" :src="state.profile.avatarA"><span v-else>{{state.profile.a[0]}}</span></i>{{state.profile.a}}</button><button type="button" :class="{active:loginUser==='b'}" @click="selectLoginUser('b')"><i><img v-if="state.profile.avatarB" :src="state.profile.avatarB"><span v-else>{{state.profile.b[0]}}</span></i>{{state.profile.b}}</button></div><div class="login-mode"><button :class="{active:loginMode==='password'}" @click="loginMode='password';accountStep='form'">密码登录</button><button :class="{active:loginMode==='email'}" @click="loginMode='email';accountStep='form'">邮箱登录</button></div><form v-if="loginMode==='password'" autocomplete="on" @submit.prevent="login"><input class="login-username" name="username" autocomplete="username" :value="loginUser==='a'?'zhangyafei':'xudan'" readonly tabindex="-1"><label><v-icon name="key-round"/><input ref="loginPasscode" v-model="loginPasscode" name="password" required type="password" autocomplete="current-password" maxlength="32" placeholder="输入专属密码"></label><div class="login-options"><label class="remember-password"><input v-model="rememberPassword" type="checkbox"><i><v-icon name="check"/></i><span>记住密码</span></label><button type="button" @click="openForgotPassword">忘记密码</button></div><em v-if="loginError">{{loginError}}</em><button :disabled="!ready">{{ready?'进入 Only Us':'正在同步账号'}} <v-icon name="arrow-right"/></button></form><div v-else class="login-sms"><label><v-icon name="mail"/><input v-model="emailInput" inputmode="email" placeholder="输入绑定邮箱"></label><label v-if="accountStep==='loginOtp'"><v-icon name="shield-check"/><input v-model="otpInput" inputmode="numeric" maxlength="8" placeholder="输入邮箱验证码"></label><button v-if="accountStep!=='loginOtp'" :disabled="!ready" @click="sendLoginOtp">获取验证码</button><button v-else @click="verifyLoginOtp">验证并登录 <v-icon name="arrow-right"/></button></div><footer>徐老师与小张同学 · 只属于我们的空间</footer></section><div class="overlay account-overlay" v-if="accountModal==='forgot'"><div class="account-dialog"><button class="account-close" @click="accountModal=''"><v-icon name="x"/></button><span class="account-icon"><v-icon name="key-round"/></span><h3>找回密码</h3><p v-if="accountStep==='email'">输入当前账号绑定的邮箱</p><div v-if="accountStep==='email'" class="account-fields"><input v-model="emailInput" inputmode="email" placeholder="绑定邮箱"><button class="primary" @click="sendEmailOtp">发送验证码</button></div><div v-else-if="accountStep==='otp'" class="account-fields"><input v-model="otpInput" inputmode="numeric" maxlength="8" placeholder="邮箱验证码"><button class="primary" @click="verifyEmailOtp">验证邮箱</button></div><form v-else class="account-fields" @submit.prevent="resetForgottenPassword"><input required name="next" type="password" minlength="6" placeholder="设置新密码"><input required name="confirmNext" type="password" minlength="6" placeholder="再次输入新密码"><button class="primary">确认重置密码</button></form><small>验证码发送失败时，请稍后重试或使用密码登录</small></div></div></div>
@@ -1871,7 +2179,7 @@ new Vue({
  <main>
   <template v-if="tab==='home'">
    <section class="hero"><img :src="'${PHOTO}'"><div class="shade"/><div class="hero-copy"><span class="eyebrow"><span/> OUR LOVE STORY <span/></span><h1>{{state.profile.a}} <v-icon name="heart" fill="currentColor"/> {{state.profile.b}}</h1><p>{{state.profile.quote}}</p><div class="counter"><div><strong>{{loveDays}}</strong><span>相爱的日子</span></div><i/><div><strong>{{startDate}}</strong><span>故事开始于</span></div></div></div><button class="float-heart" @click="rain"><v-icon name="heart" fill="currentColor"/></button></section>
-   <section class="quick"><article @click="go('album')"><div class="qicon pink"><v-icon name="images"/></div><div><b>恋爱相册</b><span>{{state.photos.length}} 张珍贵回忆</span></div><v-icon name="chevron-right"/></article><article @click="go('list')"><div class="qicon purple"><v-icon name="square-check-big"/></div><div><b>恋爱清单</b><span>{{doneCount}}/{{state.todos.length}} 已完成</span></div><v-icon name="chevron-right"/></article><article @click="go('days')"><div class="qicon amber"><v-icon name="calendar-heart"/></div><div><b>下个纪念日</b><span>{{nextAnniversary ? nextAnniversary.title : '添加纪念日'}}</span></div><strong>{{nextAnniversary ? until(nextAnniversary) : '+'}}<small>天</small></strong></article></section>
+   <section class="quick"><article @click="go('album')"><div class="qicon pink"><v-icon name="images"/></div><div><b>恋爱相册</b><span>{{state.photos.length}} 张珍贵回忆</span></div><v-icon name="chevron-right"/></article><article @click="go('list')"><div class="qicon purple"><v-icon name="square-check-big"/></div><div><b>恋爱清单</b><span>{{doneCount}}/{{state.todos.length}} 已完成</span></div><v-icon name="chevron-right"/></article><article @click="go('days')"><div class="qicon amber"><v-icon name="calendar-heart"/></div><div><b>下个纪念日</b><span>{{nextAnniversary ? nextAnniversary.title : '添加纪念日'}}</span></div><strong>{{nextAnniversary ? until(nextAnniversary) : '+'}}<small>天</small></strong></article><article @click="go('sweet')"><div class="qicon rose"><v-icon name="heart-handshake"/></div><div><b>甜蜜乐园</b><span>打卡 {{checkinStreak}} 天 · 徽章 {{gotBadgeCount}}</span></div><v-icon name="chevron-right"/></article></section>
    <section class="home-grid"><div class="panel"><div class="title"><span><v-icon name="clock-3"/></span><div><b>爱情时间线</b><small>每个瞬间，都值得被记住</small></div><button @click="go('story')">查看全部 <v-icon name="chevron-right"/></button></div><love-timeline :items="state.stories.slice(-3)"/></div><div class="panel"><div class="title"><span><v-icon name="message-circle"/></span><div><b>悄悄话</b><small>只给你看的甜蜜留言</small></div><button @click="go('notes')">查看全部 <v-icon name="chevron-right"/></button></div><love-note v-for="n in latestNotes" :key="n.id" :note="n" :profile="state.profile"/></div></section>
    <section class="surprise"><v-icon name="gift"/><div><b>今日份的小惊喜</b><p>点击开启属于你们的浪漫时刻</p></div><button @click="rain">开启惊喜 <v-icon name="sparkles"/></button></section>
   </template>
@@ -1882,6 +2190,61 @@ new Vue({
   <section class="page future-page" v-if="tab==='future'"><div class="page-head"><div><h2>未来的信</h2><p>把此刻想说的话，交给未来的某一天。</p></div></div><form class="letter-form" @submit.prevent="addLetter"><textarea ref="letterText" required maxlength="500" placeholder="写给未来的我们…"/><label><v-icon name="calendar-days"/><span>开启日期</span><input ref="letterDate" required type="date"></label><button class="primary"><v-icon name="lock-keyhole"/>封存这封信</button></form><div class="letters"><article v-for="letter in state.letters" :key="letter.id" :class="{locked:!letterReady(letter)}"><div><v-icon :name="letterReady(letter)?'mail-open':'lock-keyhole'"/></div><section><b>{{letterReady(letter)?'来自过去的一封信':'尚未到开启时间'}}</b><p v-if="letterReady(letter)">{{letter.text}}</p><p v-else>这封信将在 {{letter.openDate}} 开启</p><small>写于 {{new Date(letter.createdAt).toLocaleDateString('zh-CN')}}</small></section><button title="删除未来信" @click="confirmDelete('letters',letter.id,'这封未来信')"><v-icon name="trash-2"/></button></article><div class="empty-state" v-if="!state.letters.length"><v-icon name="mail"/><b>还没有未来信</b><span>写下第一封，留给未来的你们。</span></div></div></section>
   <section class="page me-page" v-if="tab==='me'"><div class="me-cover"><span>ONLY US</span><h2>我们的空间</h2><p>{{state.profile.a}} 与 {{state.profile.b}}</p></div><div class="couple-profile"><article><label class="avatar-editor"><img v-if="state.profile.avatarA" :src="state.profile.avatarA"><span v-else>{{state.profile.a[0]}}</span><i><v-icon name="camera"/></i><input hidden type="file" accept="image/*" @change="changeAvatar('avatarA',$event)"></label><b>{{state.profile.a}}</b></article><v-icon class="profile-heart" name="heart" fill="currentColor"/><article><label class="avatar-editor"><img v-if="state.profile.avatarB" :src="state.profile.avatarB"><span v-else>{{state.profile.b[0]}}</span><i><v-icon name="camera"/></i><input hidden type="file" accept="image/*" @change="changeAvatar('avatarB',$event)"></label><b>{{state.profile.b}}</b></article></div><template v-if="!profileEditing"><section class="profile-signature profile-value"><div><i><v-icon name="quote"/></i><span><b>我们的签名</b><small>会展示在首页照片上</small></span></div><p>{{state.profile.quote||'还没有设置签名'}}</p></section><section class="settings-list"><div class="setting-view"><i><v-icon name="calendar-heart"/></i><span><b>恋爱开始日期</b><small>{{startDate}}</small></span></div><button @click="startProfileEdit"><i><v-icon name="user-pen"/></i><span><b>编辑资料</b><small>修改昵称、恋爱日期和我们的签名</small></span><v-icon name="chevron-right"/></button><button @click="openAccountSecurity"><i><v-icon name="shield-check"/></i><span><b>账号与安全</b><small>修改密码、绑定或更换邮箱</small></span><v-icon name="chevron-right"/></button><button class="about-row" @click="updateInfo?updateModal=true:checkForUpdate(true)"><i><v-icon name="info"/></i><span><b>关于我们 <em v-if="updateInfo">有更新</em></b><small>当前版本 {{currentVersion}}{{updateInfo?' · 最新 '+updateInfo.version:''}}</small></span><v-icon name="chevron-right"/></button><button class="logout-row" @click="logout"><i><v-icon name="log-out"/></i><span><b>退出登录</b><small>退出当前账号并返回登录页面</small></span><v-icon name="chevron-right"/></button></section></template><form v-else class="profile-edit-form" @submit.prevent="saveProfile"><div class="profile-edit-heading"><span><v-icon name="user-pen"/></span><div><h3>编辑我们的资料</h3><p>修改后将实时保存到云端</p></div></div><div class="name-edit-grid"><label class="form-field"><span>昵称一</span><input required v-model="profileDraft.a" maxlength="12"></label><label class="form-field"><span>昵称二</span><input required v-model="profileDraft.b" maxlength="12"></label></div><label class="form-field"><span>恋爱开始日期</span><input required type="date" v-model="profileDraft.since"></label><label class="form-field"><span>我们的签名</span><textarea v-model="profileDraft.quote" maxlength="50" placeholder="写一句属于你们的话…"/></label><div><button type="button" @click="cancelProfileEdit">取消</button><button class="primary"><v-icon name="check"/>保存资料</button></div></form></section>
   <section class="page" v-if="tab==='story'"><div class="page-head"><div><h2>我们的故事</h2><p>从相遇到未来，每一章都由我们共同写下。</p></div><button class="primary" @click="modal='story'"><v-icon name="plus"/>记录故事</button></div><love-timeline :items="state.stories" editable @remove="removeStory"/><div class="backup"><b>数据备份</b><span>{{cloudEnabled?cloudSync:'当前仅保存在本机，卸载 APP 前请先导出备份。'}}</span><button @click="exportData"><v-icon name="download"/>导出</button><label><v-icon name="upload"/>导入<input hidden type="file" accept="application/json" @change="importData"></label></div></section>
+  <section class="page sweet-page" v-if="tab==='sweet'"><div class="page-head"><div><h2>甜蜜乐园</h2><p>打卡、成就、兑换券、默契问答…把恋爱过得更有仪式感。</p></div><button class="quote-btn" type="button" @click="refreshLoveQuote"><v-icon name="sparkles"/>换一句情话</button></div>
+   <div class="love-quote-card"><v-icon name="quote" fill="currentColor"/><p>{{loveQuote}}</p></div>
+   <div class="sweet-tabs"><button v-for="item in [['checkin','heart','心情打卡'],['habits','flame','习惯打卡'],['coupons','ticket','兑换券'],['promises','handshake','爱的承诺'],['quiz','circle-help','默契问答'],['wishes','star','愿望瓶'],['places','map-pin','恋爱足迹'],['badges','award','成就徽章'],['stats','chart-no-axes-column-increasing','恋爱数据']]" :key="item[0]" :class="{active:sweetTab===item[0]}" @click="sweetTab=item[0]"><v-icon :name="item[1]"/><span>{{item[2]}}</span></button></div>
+
+   <div class="sweet-panel" v-if="sweetTab==='checkin'">
+    <div class="mood-row"><button v-for="m in moods" :key="m.id" type="button" class="mood-chip" :class="{active:checkinMood===m.id}" @click="checkinMood=m.id"><span>{{m.emoji}}</span><small>{{m.label}}</small></button></div>
+    <form class="addbar" @submit.prevent="submitCheckin"><v-icon name="pen-line"/><input v-model="checkinNote" maxlength="80" placeholder="今天想对 TA 说…" :disabled="!!myTodayCheckin"><button class="primary" :disabled="!!myTodayCheckin">{{myTodayCheckin?'今日已打卡':'记录心情'}}</button></form>
+    <div class="streak-pill"><v-icon name="flame"/>连续打卡 <b>{{checkinStreak}}</b> 天</div>
+    <div class="checkin-grid">
+     <article class="soft-card"><header><span class="who">{{state.profile.a}}</span><em v-if="checkinOf('a')">{{checkinOf('a').emoji}}</em></header><p v-if="checkinOf('a')">{{checkinOf('a').note || '今天也有在想你'}}</p><p v-else class="muted">还没打卡</p></article>
+     <article class="soft-card"><header><span class="who">{{state.profile.b}}</span><em v-if="checkinOf('b')">{{checkinOf('b').emoji}}</em></header><p v-if="checkinOf('b')">{{checkinOf('b').note || '今天也有在想你'}}</p><p v-else class="muted">还没打卡</p></article>
+    </div>
+    <div class="mini-list"><article v-for="c in [...state.checkins].reverse().slice(0,8)" :key="c.id"><b>{{c.emoji}} {{userName(c.user)}}</b><span>{{c.date}}</span><p>{{c.note}}</p></article><div class="empty-state" v-if="!state.checkins.length"><v-icon name="heart"/><b>还没有心情记录</b><span>从今天开始打卡吧</span></div></div>
+   </div>
+
+   <div class="sweet-panel" v-if="sweetTab==='habits'">
+    <div class="habit-grid"><article v-for="h in habitToday" :key="h.id" class="soft-card habit-card" :class="{on:h.doneToday}"><div class="habit-icon">{{h.icon}}</div><b>{{h.name}}</b><small>{{h.streak ? '连续 '+h.streak+' 天' : '今天还没打卡'}}</small><button type="button" @click="toggleHabit(h)">{{h.doneToday?'已完成':'打卡'}}</button></article></div>
+    <p class="hint">每天一次小仪式，感情会慢慢变得更甜。</p>
+   </div>
+
+   <div class="sweet-panel" v-if="sweetTab==='coupons'">
+    <form class="coupon-form" @submit.prevent="addCoupon"><label><span>名称</span><input v-model="couponDraft.title" maxlength="12" placeholder="例如：洗碗券"></label><label><span>图标</span><input v-model="couponDraft.icon" maxlength="4" placeholder="🎁"></label><label><span>数量</span><input v-model.number="couponDraft.count" type="number" min="1" max="20"></label><label class="wide"><span>说明</span><input v-model="couponDraft.note" maxlength="30" placeholder="使用说明（可选）"></label><button class="primary"><v-icon name="plus"/>添加兑换券</button></form>
+    <div class="coupon-grid"><article v-for="c in couponStats" :key="c.id" class="coupon-card" :class="{empty:!c.left}"><div class="coupon-icon">{{c.icon}}</div><div><b>{{c.title}}</b><p>{{c.note || '甜蜜小特权'}}</p><small>剩余 {{c.left}} / {{c.count}}</small></div><div class="coupon-actions"><button type="button" :disabled="!c.left" @click="useCoupon(c)">{{c.left?'使用':'用完'}}</button><button type="button" class="icon-only" title="删除" @click="confirmDelete('coupons',c.id,c.title)"><v-icon name="trash-2"/></button></div></article></div>
+   </div>
+
+   <div class="sweet-panel" v-if="sweetTab==='promises'">
+    <form class="addbar" @submit.prevent="addPromise"><v-icon name="heart-handshake"/><input v-model="promiseText" maxlength="60" placeholder="写下一句你们的承诺…"><button class="primary">立下承诺</button></form>
+    <div class="promise-list"><article v-for="p in state.promises" :key="p.id" class="soft-card" :class="{done:p.done}"><label><input type="checkbox" v-model="p.done"><i><v-icon name="check"/></i></label><div><b>{{p.text}}</b><small>{{userName(p.from)}} · {{p.date}}</small></div><button type="button" class="icon-only" title="删除" @click="confirmDelete('promises',p.id,p.text)"><v-icon name="trash-2"/></button></article><div class="empty-state" v-if="!state.promises.length"><v-icon name="handshake"/><b>还没有承诺</b><span>一句认真的话，就是安全感</span></div></div>
+   </div>
+
+   <div class="sweet-panel" v-if="sweetTab==='quiz'">
+    <form class="quiz-form" @submit.prevent="addQuiz"><label><span>出一道关于自己的题</span><input v-model="quizDraft.question" maxlength="40" placeholder="例如：我最怕什么动物？"></label><label><span>标准答案</span><input v-model="quizDraft.answer" maxlength="20" placeholder="只有你能看到揭晓"></label><button class="primary"><v-icon name="send"/>出题给 TA</button></form>
+    <div class="quiz-list"><article v-for="q in state.quiz" :key="q.id" class="soft-card quiz-card"><div class="quiz-top"><b>Q：{{q.question}}</b><small>{{userName(q.author)}} 出题</small></div><template v-if="!q.revealed && q.author!==loginUser"><div class="quiz-guess"><input v-model="quizGuess[q.id]" maxlength="20" placeholder="输入你的答案"><button class="primary" type="button" @click="revealQuiz(q)">揭晓</button></div></template><template v-else><p class="quiz-answer">答案：{{q.answer}}</p></template></article><div class="empty-state" v-if="!state.quiz.length"><v-icon name="circle-help"/><b>还没有默契题</b><span>互相出题，看看有多了解对方</span></div></div>
+   </div>
+
+   <div class="sweet-panel" v-if="sweetTab==='wishes'">
+    <form class="addbar" @submit.prevent="addWish"><v-icon name="star"/><input v-model="wishText" maxlength="40" placeholder="写下一个小愿望…"><button class="primary">放进瓶子</button></form>
+    <div class="wish-list"><article v-for="w in state.wishes" :key="w.id" class="soft-card" :class="{done:w.done}"><label><input type="checkbox" v-model="w.done"><i><v-icon name="check"/></i></label><div><b>{{w.text}}</b><small>{{userName(w.by)}} 的愿望</small></div><button type="button" class="icon-only" title="删除" @click="confirmDelete('wishes',w.id,w.text)"><v-icon name="trash-2"/></button></article><div class="empty-state" v-if="!state.wishes.length"><v-icon name="star"/><b>愿望瓶还是空的</b><span>哪怕很小，也值得被实现</span></div></div>
+   </div>
+
+   <div class="sweet-panel" v-if="sweetTab==='places'">
+    <form class="place-form" @submit.prevent="addPlace"><label class="wide"><span>地点</span><input v-model="placeDraft.name" maxlength="24" placeholder="例如：第一次见面的咖啡馆"></label><label><span>日期</span><input v-model="placeDraft.date" type="date"></label><label><span>备注</span><input v-model="placeDraft.note" maxlength="30" placeholder="那天的小故事"></label><button class="primary"><v-icon name="map-pin"/>记录足迹</button></form>
+    <div class="place-list"><article v-for="p in [...state.places].reverse()" :key="p.id" class="soft-card"><div class="place-dot"/><div><b>{{p.name}}</b><small>{{p.date}}<template v-if="p.note"> · {{p.note}}</template></small></div><button type="button" class="icon-only" title="删除" @click="confirmDelete('places',p.id,p.name)"><v-icon name="trash-2"/></button></article><div class="empty-state" v-if="!state.places.length"><v-icon name="map-pin"/><b>还没有足迹</b><span>把一起去过的地方记下来吧</span></div></div>
+   </div>
+
+   <div class="sweet-panel" v-if="sweetTab==='badges'">
+    <div class="badge-grid"><article v-for="b in loveBadges" :key="b.id" class="badge-card" :class="{got:b.got}"><div class="badge-icon">{{b.got ? b.icon : '🔒'}}</div><b>{{b.name}}</b><small>{{b.desc}}</small></article></div>
+    <div class="streak-pill"><v-icon name="award"/>已解锁 {{gotBadgeCount}} / {{loveBadges.length}} 枚</div>
+   </div>
+
+   <div class="sweet-panel" v-if="sweetTab==='stats'">
+    <div class="stat-grid"><article v-for="s in sweetStats" :key="s.label" class="soft-card stat-card"><strong>{{s.value}}<small>{{s.unit}}</small></strong><span>{{s.label}}</span></article></div>
+    <div class="soft-card quote-box"><b>每日情话</b><p>{{loveQuote}}</p></div>
+   </div>
+  </section>
  </main><footer><v-icon name="heart" fill="currentColor"/> Only Us · 愿每一天都值得纪念</footer>
  <div class="overlay" v-if="modal" @mousedown.self="modal=null"><div class="modal" :class="{'day-modal':modal==='day'}"><button class="close" @click="modal=null"><v-icon name="x"/></button><small v-if="modal==='day'">ONLY US CALENDAR</small><h3>{{modal==='day'?'添加纪念日':'记录故事'}}</h3><form @submit.prevent="saveModal"><label class="form-field"><span>纪念日名称</span><input required name="title" placeholder="例如：第一次旅行"></label><label class="form-field" v-if="modal==='day'"><span><v-icon name="calendar-heart"/>日期类型</span><select name="calendar" v-model="dayCalendar"><option value="solar">公历</option><option value="lunar">农历</option></select></label><div class="date-time-grid" v-if="modal==='day'"><label class="form-field" v-if="dayCalendar==='solar'"><span><v-icon name="calendar-days"/>公历日期</span><input required name="date" type="date"></label><label class="form-field" v-else><span><v-icon name="calendar-days"/>农历日期</span><div class="lunar-date-select"><select name="lunarMonth"><option v-for="m in 12" :value="m">{{m}}月</option></select><select name="lunarDay"><option v-for="d in 30" :value="d">{{d}}日</option></select></div></label><label class="form-field"><span><v-icon name="clock-3"/>时间</span><div class="time-select"><input name="hour" aria-label="小时" type="number" inputmode="numeric" min="0" max="23" value="9"><b>:</b><input name="minute" aria-label="分钟" type="number" inputmode="numeric" min="0" max="59" step="5" value="0"></div></label></div><label class="form-field" v-else><span>日期</span><input required name="date" type="date"></label><label class="remind-field" v-if="modal==='day'"><span><v-icon name="bell-ring"/>提前提醒</span><select name="remindDays"><option value="0">当天提醒</option><option value="1" selected>提前1天</option><option value="3">提前3天</option><option value="7">提前7天</option><option value="30">提前30天</option></select></label><label class="calendar-toggle" v-if="modal==='day'"><span><i><v-icon name="calendar-plus"/></i><b>添加到手机日历</b><small>保存后打开系统日历确认</small></span><input type="checkbox" name="addCalendar" checked><i/></label><textarea v-if="modal==='story'" required name="text" placeholder="那天发生了什么…"/><button class="primary">{{modal==='day'?'保存并设置提醒':'保存'}}</button></form></div></div>
  <div class="overlay" v-if="photoEditing" @mousedown.self="photoEditing=null"><div class="modal photo-edit-modal"><button class="close" @click="photoEditing=null"><v-icon name="x"/></button><small>PHOTO MEMORY</small><h3>编辑照片纪念</h3><form @submit.prevent="savePhotoText"><label class="form-field"><span>纪念标题</span><input required v-model="photoDraft.title" maxlength="30" placeholder="例如：第一次旅行"></label><label class="form-field"><span>拍摄日期</span><input required type="date" v-model="photoDraft.date"></label><label class="form-field"><span>纪念文字</span><textarea v-model="photoDraft.description" maxlength="200" placeholder="写下这张照片背后的故事…"/></label><button class="primary"><v-icon name="check"/>保存纪念内容</button></form></div></div>
