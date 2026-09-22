@@ -1,6 +1,6 @@
 import Vue from "vue/dist/vue.esm.js";
 import { icons } from "lucide";
-import { Capacitor } from "@capacitor/core";
+import { Capacitor, registerPlugin } from "@capacitor/core";
 import { App as NativeApp } from "@capacitor/app";
 import { Browser } from "@capacitor/browser";
 import { Directory, Encoding, Filesystem } from "@capacitor/filesystem";
@@ -10,6 +10,8 @@ import { CapacitorCalendar } from "@ebarooni/capacitor-calendar";
 import { Lunar } from "lunar-javascript";
 import * as exifr from "exifr";
 import "./style.css";
+
+const UpdateInstaller = registerPlugin("UpdateInstaller");
 
 const PHOTO = `${import.meta.env.BASE_URL}temple-couple.jpg`;
 const MUSIC_PREVIEW = `${
@@ -25,7 +27,7 @@ const UPDATE_URLS = [
 ];
 const PAGES_APK_URL = "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android.apk";
 const CDN_APK_URL = "https://cdn.jsdelivr.net/gh/zyf-coder/FLX@main/public/downloads/OnlyUs-Android.apk";
-const WEB_VERSION = "2.2.1";
+const WEB_VERSION = "2.2.2";
 const BOUND_EMAIL_ACCOUNTS = {
   a: {
     emailHash:
@@ -182,6 +184,37 @@ const MOODS = [
   { id: "angry", emoji: "😤", label: "小生气" },
 ];
 const todayKey = () => new Date().toISOString().slice(0, 10);
+const downloadWithProgress = (url, onProgress = () => {}) =>
+  new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("GET", url);
+    xhr.responseType = "blob";
+    xhr.timeout = 10 * 60 * 1000;
+    xhr.onprogress = (event) => {
+      if (event.lengthComputable) {
+        onProgress(Math.min(99, Math.round((event.loaded / event.total) * 100)));
+      }
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        onProgress(100);
+        resolve(xhr.response);
+      } else reject(new Error(`下载失败（${xhr.status}）`));
+    };
+    xhr.onerror = () => reject(new Error("下载连接失败"));
+    xhr.ontimeout = () => reject(new Error("下载超时"));
+    xhr.send();
+  });
+const blobToBase64 = (blob) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result || "");
+      resolve(String(result.split(",")[1] || ""));
+    };
+    reader.onerror = () => reject(new Error("读取下载文件失败"));
+    reader.readAsDataURL(blob);
+  });
 const clone = (value) => JSON.parse(JSON.stringify(value));
 // 启动阶段的网络或存储请求必须有上限，避免 WebView 永久停留在加载页。
 const withTimeout = (promise, ms) =>
@@ -731,6 +764,10 @@ new Vue({
     currentVersion: WEB_VERSION,
     updateInfo: null,
     updateModal: false,
+    updateDownloading: false,
+    updateProgress: 0,
+    updateApkPath: "",
+    updateApkUri: "",
     quickAddOpen: false,
     appNotice: "",
     appNoticeType: "success",
@@ -1450,6 +1487,11 @@ new Vue({
     },
     async installUpdate() {
       if (!this.updateInfo) return;
+      if (this.updateApkUri) {
+        await this.launchApkInstaller();
+        return;
+      }
+      if (this.updateDownloading) return;
       const candidates = [
         this.updateInfo.androidUrl,
         PAGES_APK_URL,
@@ -1474,7 +1516,46 @@ new Vue({
           console.warn("下载线路暂不可用", candidate, error);
         }
       }
-      await Browser.open({ url: downloadUrl });
+      this.updateDownloading = true;
+      this.updateProgress = 0;
+      try {
+        const blob = await downloadWithProgress(downloadUrl, (percent) => {
+          this.updateProgress = percent;
+        });
+        this.updateProgress = 100;
+        const base64 = await blobToBase64(blob);
+        const fileName = `OnlyUs-Android-${this.updateInfo.version}.apk`;
+        const result = await Filesystem.writeFile({
+          path: fileName,
+          data: base64,
+          directory: Directory.Cache,
+          encoding: Encoding.Base64,
+        });
+        this.updateApkUri = result.uri;
+        this.updateApkPath = String(result.uri || "").replace(/^file:\/\//, "");
+        this.showNotice("下载完成，点击安装即可");
+      } catch (error) {
+        console.warn("应用内下载失败，回退浏览器", error);
+        this.showNotice("下载失败，已打开浏览器下载");
+        await Browser.open({ url: downloadUrl });
+      } finally {
+        this.updateDownloading = false;
+      }
+    },
+    async launchApkInstaller() {
+      try {
+        if (Capacitor.isNativePlatform()) {
+          await UpdateInstaller.install({
+            uri: this.updateApkUri,
+            path: this.updateApkPath,
+          });
+          return;
+        }
+        await Browser.open({ url: this.updateApkUri || PAGES_APK_URL });
+      } catch (error) {
+        console.warn("安装器调用失败", error);
+        await Browser.open({ url: PAGES_APK_URL });
+      }
     },
     showNotice(message) {
       const cleanMessage = String(message)
@@ -2267,7 +2348,7 @@ new Vue({
    <section class="home-grid"><div class="panel"><div class="title"><span><v-icon name="clock-3"/></span><div><b>爱情时间线</b><small>每个瞬间，都值得被记住</small></div><button @click="go('story')">查看全部 <v-icon name="chevron-right"/></button></div><love-timeline :items="state.stories.slice(-3)"/></div><div class="panel"><div class="title"><span><v-icon name="message-circle"/></span><div><b>悄悄话</b><small>只给你看的甜蜜留言</small></div><button @click="go('notes')">查看全部 <v-icon name="chevron-right"/></button></div><love-note v-for="n in latestNotes" :key="n.id" :note="n" :profile="state.profile"/></div></section>
    <section class="surprise"><v-icon name="gift"/><div><b>今日份的小惊喜</b><p>点击开启属于你们的浪漫时刻</p></div><button @click="rain">开启惊喜 <v-icon name="sparkles"/></button></section>
   </template>
-  <section class="page" v-if="tab==='album'"><div class="page-head"><div><h2>恋爱相册</h2><p>照片、视频和动态照片都可以收藏。</p></div><button class="primary" @click="$refs.file.click()"><v-icon name="camera"/>上传照片 / 视频</button></div><input hidden multiple accept="image/*,video/*,.heic,.heif" type="file" ref="file" @change="photos"><input hidden accept="image/*,video/*,.heic,.heif" type="file" ref="replaceFile" @change="replacePhotoFile"><div class="gallery"><figure class="upload-preview" :class="{failed:item.failed}" v-for="item in uploadQueue" :key="'upload-'+item.id"><video v-if="item.type==='video'" :src="item.preview" muted playsinline autoplay loop/><img v-else :src="item.preview"><div class="upload-progress"><b>{{item.progress}}%</b><span>{{item.status}}</span><i><em :style="{width:item.progress+'%'}"/></i></div></figure><figure class="photo-memory" v-for="p in sortedPhotos" :key="p.id"><template v-if="p.type==='live'"><img v-if="!livePlaying[p.id] && liveStill(p)" class="live-still" :src="liveStill(p)" alt="动态照片" @error="repairLiveStill(p,true)"><video v-else-if="!livePlaying[p.id] && isMotionSrc(p.src)" class="live-still live-still-fallback" :src="p.src" muted playsinline preload="metadata" controls @loadeddata="ensureVideoPoster(p,$event)"/><div v-else-if="!livePlaying[p.id]" class="live-still live-still-fallback"><v-icon name="image"/></div><video v-else :ref="'live-'+p.id" :src="p.src" :poster="liveStill(p)" muted playsinline preload="auto" @ended="stopLivePhoto(p)" @error="stopLivePhoto(p)"/><button type="button" class="live-photo-badge" :class="{playing:livePlaying[p.id]}" @click.stop="toggleLivePhoto(p)"><v-icon :name="livePlaying[p.id]?'pause':'play'" fill="currentColor"/>{{livePlaying[p.id]?'播放中':'动态照片'}}</button></template><video v-else-if="p.type==='video' || (!p.type && /\.(mp4|mov|webm|m4v)$/i.test(p.src))" :src="p.src" :poster="p.poster || runtimePosters[p.id]" crossorigin="anonymous" controls playsinline preload="auto" @loadeddata="ensureVideoPoster(p,$event)"/><img v-else :src="p.src"><figcaption v-if="p.title||p.description||p.date"><div><b v-if="p.title">{{p.title}}</b><span v-if="p.date">{{p.date}}</span></div><p v-if="p.description">{{p.description}}</p></figcaption><div class="photo-actions"><button title="编辑纪念文字" @click="editPhoto(p)"><v-icon name="pencil"/></button><button title="替换媒体" @click="replacePhoto(p)"><v-icon name="refresh-cw"/></button><button title="删除媒体" @click="removePhoto(p)"><v-icon name="trash-2"/></button></div></figure></div></section>
+  <section class="page" v-if="tab==='album'"><div class="page-head"><div><h2>恋爱相册</h2><p>照片、视频和动态照片都可以收藏。</p></div><button class="primary" @click="$refs.file.click()"><v-icon name="camera"/>上传照片 / 视频</button></div><input hidden multiple accept="image/*,video/*,.heic,.heif" type="file" ref="file" @change="photos"><input hidden accept="image/*,video/*,.heic,.heif" type="file" ref="replaceFile" @change="replacePhotoFile"><div class="gallery"><figure class="upload-preview" :class="{failed:item.failed}" v-for="item in uploadQueue" :key="'upload-'+item.id"><video v-if="item.type==='video'" :src="item.preview" muted playsinline autoplay loop/><img v-else :src="item.preview"><div class="upload-progress"><b>{{item.progress}}%</b><span>{{item.status}}</span><i><em :style="{width:item.progress+'%'}"/></i></div></figure><figure class="photo-memory" v-for="p in sortedPhotos" :key="p.id"><template v-if="p.type==='live'"><div class="live-frame"><video class="live-video" :ref="'live-'+p.id" :src="p.src" :poster="liveStill(p) || undefined" :controls="livePlaying[p.id]" muted playsinline preload="metadata" @ended="stopLivePhoto(p)" @error="repairLiveStill(p,true)" @loadeddata="ensureVideoPoster(p,$event)"/><button type="button" class="live-photo-badge" :class="{playing:livePlaying[p.id]}" @click.stop="toggleLivePhoto(p)"><v-icon :name="livePlaying[p.id]?'pause':'play'" fill="currentColor"/>{{livePlaying[p.id]?'播放中':'动态照片'}}</button></div></template><video v-else-if="p.type==='video' || (!p.type && /\.(mp4|mov|webm|m4v)$/i.test(p.src))" :src="p.src" :poster="p.poster || runtimePosters[p.id]" crossorigin="anonymous" controls playsinline preload="auto" @loadeddata="ensureVideoPoster(p,$event)"/><img v-else :src="p.src"><figcaption v-if="p.title||p.description||p.date"><div><b v-if="p.title">{{p.title}}</b><span v-if="p.date">{{p.date}}</span></div><p v-if="p.description">{{p.description}}</p></figcaption><div class="photo-actions"><button title="编辑纪念文字" @click="editPhoto(p)"><v-icon name="pencil"/></button><button title="替换媒体" @click="replacePhoto(p)"><v-icon name="refresh-cw"/></button><button title="删除媒体" @click="removePhoto(p)"><v-icon name="trash-2"/></button></div></figure></div></section>
   <section class="page list-page" v-if="tab==='list'"><div class="page-head"><div><h2>恋爱清单</h2><p>想一起做的事，一件件变成共同回忆。</p></div><span class="list-progress">已完成 {{doneCount}} / {{state.todos.length}}</span></div><form class="addbar" @submit.prevent="addTodo"><v-icon name="sparkles"/><input ref="todo" placeholder="写下下一件想一起做的事"><button title="添加到清单"><v-icon name="plus"/><span>添加</span></button></form><div class="todo"><label v-for="t in state.todos" :key="t.id" :class="{completed:t.done}"><input type="checkbox" v-model="t.done"><i><v-icon name="check"/></i><span>{{t.text}}</span><button type="button" title="删除" @click.prevent="confirmDelete('todos',t.id,t.text)"><v-icon name="trash-2"/></button></label></div></section>
   <anniversary-page v-if="tab==='days'" :items="state.days" @add="modal='day'" @remove="removeAnniversary" @calendar="addToPhoneCalendar"/>
   <section class="page" v-if="tab==='notes'"><div class="page-head"><div><h2>悄悄话</h2><p>忙碌的日子里，也别忘了说爱你。</p></div></div><form class="noteform" @submit.prevent="addNote"><textarea ref="note" maxlength="120" placeholder="写一句只给 TA 看的话…"/><button><v-icon name="send"/>发送留言</button></form><love-note v-for="n in state.notes" :key="n.id" :note="n" :profile="state.profile"/></section>
@@ -2335,7 +2416,7 @@ new Vue({
  <div class="overlay confirm-overlay" v-if="logoutConfirm"><div class="confirm-dialog"><span><v-icon name="log-out"/></span><h3>退出当前账号？</h3><p>退出后需要重新验证密码才能进入。</p><div><button @click="logoutConfirm=false">取消</button><button class="danger" @click="confirmLogout">确认退出</button></div></div></div>
  <div class="overlay account-overlay" v-if="accountModal==='security'"><div class="account-dialog security-dialog"><button class="account-close" @click="accountModal=''"><v-icon name="x"/></button><button class="account-back" v-if="accountView!=='menu'" @click="accountView='menu';accountStep='form'"><v-icon name="chevron-left"/>返回</button><span class="account-icon"><v-icon :name="accountView==='password'?'key-round':accountView==='email'?'mail':'shield-check'"/></span><h3>{{accountView==='password'?'修改密码':accountView==='email'?'绑定邮箱':'账号与安全'}}</h3><p v-if="accountView==='menu'">管理当前账号的登录与验证方式</p><div class="security-menu" v-if="accountView==='menu'"><button @click="openAccountSection('password')"><i><v-icon name="key-round"/></i><span><b>修改密码</b><small>定期更换密码，保护账号安全</small></span><v-icon name="chevron-right"/></button><button @click="openAccountSection('email')"><i><v-icon name="mail"/></i><span><b>绑定邮箱</b><small>当前绑定 {{state.meta.accounts[loginUser]?.emailMasked||'未绑定'}}</small></span><v-icon name="chevron-right"/></button></div><form v-else-if="accountView==='password'" class="account-fields" @submit.prevent="changePassword"><input required name="current" type="password" placeholder="当前密码"><input required name="next" type="password" minlength="6" placeholder="新密码（至少6位）"><input required name="confirmNext" type="password" minlength="6" placeholder="再次输入新密码"><button class="primary">保存新密码</button></form><template v-else><div v-if="accountStep==='form'" class="account-fields"><p class="bound-phone">已绑定邮箱： {{state.meta.accounts[loginUser]?.emailMasked}}</p><input v-model="emailInput" inputmode="email" placeholder="输入新的邮箱地址"><button class="primary" @click="sendEmailOtp">发送验证码</button></div><div v-else class="account-fields"><p>验证码已发送至 {{emailInput}}</p><input v-model="otpInput" inputmode="numeric" maxlength="8" placeholder="邮箱验证码"><button class="primary" @click="verifyEmailOtp">确认绑定</button></div></template></div></div>
  <div class="overlay confirm-overlay" v-if="deleteConfirm"><div class="confirm-dialog"><span><v-icon name="trash-2"/></span><h3>{{deleteConfirm.title}}</h3><p>{{deleteConfirm.text}}</p><div><button @click="deleteConfirm=null">取消</button><button class="danger" @click="runDeleteConfirm">确认删除</button></div></div></div>
- <div class="overlay update-overlay" v-if="updateModal&&updateInfo"><div class="update-dialog"><div class="update-art"><v-icon name="sparkles"/><span>NEW</span></div><button class="close" title="稍后更新" @click="updateModal=false"><v-icon name="x"/></button><small>ONLY US UPDATE</small><h3>发现新版本 {{updateInfo.version}}</h3><p>本次更新</p><ul><li v-for="line in updateInfo.notes.split('；')" :key="line"><v-icon name="check-circle-2"/>{{line}}</li></ul><div><button class="later" @click="updateModal=false">暂不更新</button><button class="primary" @click="installUpdate"><v-icon name="download"/>立即更新</button></div></div></div>
+ <div class="overlay update-overlay" v-if="updateModal&&updateInfo"><div class="update-dialog"><div class="update-art"><v-icon name="sparkles"/><span>NEW</span></div><button class="close" title="稍后更新" @click="updateModal=false"><v-icon name="x"/></button><small>ONLY US UPDATE</small><h3>发现新版本 {{updateInfo.version}}</h3><p>本次更新</p><ul><li v-for="line in updateInfo.notes.split('；')" :key="line"><v-icon name="check-circle-2"/>{{line}}</li></ul><div class="update-dl" v-if="updateDownloading || updateApkUri"><div class="update-dl-head"><b>{{updateApkUri ? '下载完成' : '正在下载更新'}}</b><span>{{updateProgress}}%</span></div><i class="update-dl-bar"><em :style="{width:updateProgress+'%'}"/></i></div><div><button class="later" @click="updateModal=false">暂不更新</button><button class="primary" :disabled="updateDownloading" @click="installUpdate"><v-icon :name="updateDownloading?'loader-circle':updateApkUri?'package-check':'download'"/>{{updateDownloading?'下载中 '+updateProgress+'%':updateApkUri?'点击安装':'下载并安装'}}</button></div></div></div>
  <div class="overlay quick-overlay" v-if="quickAddOpen" @mousedown.self="quickAddOpen=false"><div class="quick-sheet"><i/><h3>记录此刻</h3><div><button @click="chooseQuickAdd('photo')"><span><v-icon name="camera"/></span>上传照片</button><button @click="chooseQuickAdd('notes')"><span><v-icon name="message-circle"/></span>写悄悄话</button><button @click="chooseQuickAdd('day')"><span><v-icon name="calendar-heart"/></span>加纪念日</button><button @click="chooseQuickAdd('future')"><span><v-icon name="mail"/></span>写未来信</button></div><button class="sheet-cancel" @click="quickAddOpen=false">取消</button></div></div>
 </div><div class="loading load-error" v-else-if="loadError"><v-icon name="cloud-off"/><b>暂时无法读取云端数据</b><span>请检查网络后重试，避免显示不准确的数据。</span><button @click="reloadPage">重新连接</button></div><div class="loading" v-else><v-icon name="heart" fill="currentColor"/>正在打开我们的故事…</div>`,
 });

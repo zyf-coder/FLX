@@ -7,6 +7,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        registerPlugin(UpdateInstallerPlugin.class);
         getBridge().getWebView().getSettings().setMediaPlaybackRequiresUserGesture(false);
     }
 }
