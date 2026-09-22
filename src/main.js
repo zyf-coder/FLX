@@ -47,7 +47,7 @@ const apkUrlWithCacheBust = (url, version = "") =>
   `${url}${url.includes("?") ? "&" : "?"}v=${encodeURIComponent(
     version || "latest"
   )}&cb=${Date.now()}`;
-const WEB_VERSION = "2.2.9";
+const WEB_VERSION = "2.2.10";
 const BOUND_EMAIL_ACCOUNTS = {
   a: {
     emailHash:
@@ -1644,9 +1644,14 @@ new Vue({
         } catch (error) {
           if (handler && handler.remove) handler.remove();
           const message = String(error?.message || "");
-          if (message.includes("NEED_INSTALL_PERMISSION")) {
+          if (message.includes("NEED_INSTALL_PERMISSION") || message.includes("need install permission")) {
             this.updateDownloading = false;
-            this.showNotice("请先允许安装应用，再点一次安装", "error");
+            this.showNotice("请允许 Only Us 安装应用后再点一次安装", "error");
+            return;
+          }
+          if (message.includes("LAUNCH_FAILED") || message.includes("install")) {
+            this.updateDownloading = false;
+            this.showNotice(`安装启动失败：${message}`, "error");
             return;
           }
           console.warn("原生下载安装失败，回退 JS 下载", error);
@@ -1716,15 +1721,23 @@ new Vue({
       if (Capacitor.isNativePlatform()) {
         try {
           await UpdateInstaller.install(payload);
+          this.showNotice("已拉起系统安装");
           return;
         } catch (error) {
           const message = String(error?.message || "");
-          if (message.includes("NEED_INSTALL_PERMISSION")) {
-            this.showNotice("请在系统设置里允许安装应用，然后再点安装", "error");
+          if (message.includes("NEED_INSTALL_PERMISSION") || message.includes("need install permission")) {
+            this.showNotice("请在「设置 → 应用 → Only Us → 安装未知应用」里打开允许，再点安装", "error");
+            return;
+          }
+          if (message.includes("APK_MISSING") || message.includes("APK file not found")) {
+            this.showNotice("安装包未找到，请重新下载后再安装", "error");
+            this.updateApkUri = "";
+            this.updateApkFile = "";
+            this.updateApkPath = "";
             return;
           }
           console.warn("安装器失败", error);
-          this.showNotice("无法拉起安装，请在系统设置允许安装应用后重试", "error");
+          this.showNotice(message ? `安装启动失败：${message}` : "无法拉起安装，请重试", "error");
           return;
         }
       }
