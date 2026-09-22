@@ -1,6 +1,6 @@
 {
-  "version": "2.2.2",
-  "versionCode": 40,
-  "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android.apk",
-  "notes": "修复动态照片显示错乱；更新改为应用内下载 0-100% 进度，下载完成后一键安装，不再反复跳浏览器。"
+  "version": "2.2.3",
+  "versionCode": 41,
+  "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android-2.2.3.apk",
+  "notes": "修复更新包被缓存成旧版本导致反复提示；下载链接带版本号防缓存；同一版本 24 小时内只自动提醒一次。"
 }

@@ -1159,6 +1159,11 @@ main {
   background: #fff4f8;
   border: 1px solid #ffd7e5;
 }
+.update-current {
+  margin: 0 0 8px;
+  color: #a89099;
+  font-size: 12px;
+}
 .update-dl-head {
   display: flex;
   justify-content: space-between;
