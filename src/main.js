@@ -71,7 +71,7 @@ const apkUrlWithCacheBust = (url, version = "") =>
   `${url}${url.includes("?") ? "&" : "?"}v=${encodeURIComponent(
     version || "latest"
   )}&cb=${Date.now()}`;
-const WEB_VERSION = "2.2.7";
+const WEB_VERSION = "2.2.8";
 const BOUND_EMAIL_ACCOUNTS = {
   a: {
     emailHash:
@@ -1610,13 +1610,8 @@ new Vue({
     },
     async installUpdate() {
       if (!this.updateInfo) return;
-      if (this.updateApkUri) {
-        await this.launchApkInstaller();
-        return;
-      }
       if (this.updateDownloading) return;
       const version = String(this.updateInfo.version || "");
-      // 版本化文件名 + 缓存穿透，避免 jsDelivr/浏览器缓存吐出旧包
       const candidates = [
         `${PAGES_APK_BASE}/OnlyUs-Android-${version}.apk`,
         this.updateInfo.androidUrl,
@@ -1625,29 +1620,85 @@ new Vue({
       ]
         .filter(Boolean)
         .map((url) => apkUrlWithCacheBust(url, version));
-      let downloadUrl = candidates[0];
-      for (const candidate of candidates) {
+      // 已下好过：直接安装
+      if (this.updateApkUri || this.updateApkFile || this.updateApkPath) {
+        await this.launchApkInstaller();
+        return;
+      }
+      // Android 优先走原生下载+安装（大文件更稳，不写 base64）
+      if (Capacitor.isNativePlatform()) {
+        this.updateDownloading = true;
+        this.updateProgress = 0;
+        let handler = null;
         try {
-          const controller = new AbortController();
-          const timer = setTimeout(() => controller.abort(), 4500);
-          const response = await fetch(candidate, {
-            method: "HEAD",
-            cache: "no-store",
-            signal: controller.signal,
+          handler = await UpdateInstaller.addListener("progress", (event) => {
+            const pct = Number(event?.percent || 0);
+            if (pct >= 0 && pct <= 100) this.updateProgress = pct;
           });
-          clearTimeout(timer);
-          if (response.ok) {
-            downloadUrl = candidate;
-            break;
+          let downloadUrl = candidates[0];
+          for (const candidate of candidates) {
+            try {
+              const controller = new AbortController();
+              const timer = setTimeout(() => controller.abort(), 4500);
+              const response = await fetch(candidate, {
+                method: "HEAD",
+                cache: "no-store",
+                signal: controller.signal,
+              });
+              clearTimeout(timer);
+              if (response.ok) {
+                downloadUrl = candidate;
+                break;
+              }
+            } catch (error) {
+              console.warn("下载线路暂不可用", candidate, error);
+            }
           }
+          this.updateApkFile = `OnlyUs-Android-${version || "update"}.apk`;
+          await UpdateInstaller.downloadAndInstall({
+            url: downloadUrl,
+            fileName: this.updateApkFile,
+          });
+          this.updateProgress = 100;
+          this.updateApkUri = "native";
+          this.showNotice("已拉起系统安装");
+          this.updateDownloading = false;
+          if (handler && handler.remove) handler.remove();
+          return;
         } catch (error) {
-          console.warn("下载线路暂不可用", candidate, error);
+          if (handler && handler.remove) handler.remove();
+          const message = String(error?.message || "");
+          if (message.includes("NEED_INSTALL_PERMISSION")) {
+            this.updateDownloading = false;
+            this.showNotice("请先允许安装应用，再点一次安装", "error");
+            return;
+          }
+          console.warn("原生下载安装失败，回退 JS 下载", error);
         }
       }
       this.updateDownloading = true;
       this.updateProgress = 0;
       try {
-        const blob = await downloadWithProgress(downloadUrl, (percent) => {
+        let fallbackUrl = candidates[0];
+        for (const candidate of candidates) {
+          try {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 4500);
+            const response = await fetch(candidate, {
+              method: "HEAD",
+              cache: "no-store",
+              signal: controller.signal,
+            });
+            clearTimeout(timer);
+            if (response.ok) {
+              fallbackUrl = candidate;
+              break;
+            }
+          } catch (error) {
+            console.warn("下载线路暂不可用", candidate, error);
+          }
+        }
+        const blob = await downloadWithProgress(fallbackUrl, (percent) => {
           this.updateProgress = percent;
         });
         this.updateProgress = 100;
@@ -1674,11 +1725,8 @@ new Vue({
         }
         this.showNotice("下载完成，点击安装即可");
       } catch (error) {
-        console.warn("应用内下载失败，回退浏览器", error);
-        this.showNotice("下载失败，已打开浏览器下载");
-        await Browser.open({
-          url: apkUrlWithCacheBust(PAGES_APK_URL, version),
-        });
+        console.warn("应用内下载失败", error);
+        this.showNotice("下载失败，请重试或手动安装", "error");
       } finally {
         this.updateDownloading = false;
       }
@@ -1687,25 +1735,21 @@ new Vue({
       const payload = {
         fileName: this.updateApkFile || "",
         path: this.updateApkPath || "",
-        uri: this.updateApkUri || "",
+        uri: this.updateApkUri === "native" ? "" : this.updateApkUri || "",
       };
       if (Capacitor.isNativePlatform()) {
         try {
           await UpdateInstaller.install(payload);
           return;
         } catch (error) {
-          console.warn("安装器失败，尝试备用路径", error);
-          try {
-            await UpdateInstaller.install({
-              ...payload,
-              path: this.updateApkFile || payload.path,
-            });
-            return;
-          } catch (error2) {
-            console.warn("安装器仍失败", error2);
-            this.showNotice("无法拉起安装，请在系统提示中允许安装应用", "error");
+          const message = String(error?.message || "");
+          if (message.includes("NEED_INSTALL_PERMISSION")) {
+            this.showNotice("请在系统设置里允许安装应用，然后再点安装", "error");
             return;
           }
+          console.warn("安装器失败", error);
+          this.showNotice("无法拉起安装，请在系统设置允许安装应用后重试", "error");
+          return;
         }
       }
       await Browser.open({
