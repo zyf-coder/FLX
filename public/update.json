@@ -1,6 +1,6 @@
 {
-  "version": "2.2.4",
-  "versionCode": 42,
-  "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android-2.2.4.apk",
-  "notes": "修复动态照片播放失败；删除照片改为云端失败也先从相册移除，不再卡住删除。"
+  "version": "2.2.5",
+  "versionCode": 43,
+  "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android-2.2.5.apk",
+  "notes": "修复删除照片被云同步恢复；修复更新安装不再跳浏览器，直接拉起系统安装。"
 }

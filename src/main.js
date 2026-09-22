@@ -33,7 +33,7 @@ const apkUrlWithCacheBust = (url, version = "") =>
   `${url}${url.includes("?") ? "&" : "?"}v=${encodeURIComponent(
     version || "latest"
   )}&cb=${Date.now()}`;
-const WEB_VERSION = "2.2.4";
+const WEB_VERSION = "2.2.5";
 const BOUND_EMAIL_ACCOUNTS = {
   a: {
     emailHash:
@@ -533,15 +533,38 @@ const mergeListKeepRecentLocal = (localList, remoteList, remoteUpdatedAt, timeKe
   });
   return [...map.values()];
 };
+const pruneDeletedMap = (deleted) => {
+  const now = Date.now();
+  const out = {};
+  Object.entries(deleted || {}).forEach(([id, at]) => {
+    const time = Number(at) || 0;
+    if (now - time < 30 * 86400000) out[id] = time;
+  });
+  return out;
+};
+const dropDeletedItems = (list, deleted) => {
+  if (!deleted || !Object.keys(deleted).length) return Array.isArray(list) ? list : [];
+  return (list || []).filter(
+    (item) => !item || item.id == null || !deleted[String(item.id)]
+  );
+};
 const mergeCloudState = (local, remote) => {
   const recovered = clone(remote);
   const remoteUpdatedAt = Number(recovered._updatedAt) || 0;
+  const deleted = pruneDeletedMap({
+    ...(local?._deleted || {}),
+    ...(recovered._deleted || {}),
+  });
+  recovered._deleted = deleted;
   STATE_LIST_KEYS.forEach((key) => {
     if (Array.isArray(local?.[key]) && local[key].length > 0 && Array.isArray(recovered[key]) && recovered[key].length === 0) {
       recovered[key] = clone(local[key]);
     }
   });
-  recovered.photos = mergeListKeepRecentLocal(local?.photos, recovered.photos, remoteUpdatedAt, "uploadedAt");
+  recovered.photos = dropDeletedItems(
+    mergeListKeepRecentLocal(local?.photos, recovered.photos, remoteUpdatedAt, "uploadedAt"),
+    deleted
+  );
   recovered.profile = { ...(local?.profile || {}), ...(recovered.profile || {}) };
   recovered.meta = { ...(local?.meta || {}), ...(recovered.meta || {}) };
   return recovered;
@@ -782,6 +805,7 @@ new Vue({
     updateProgress: 0,
     updateApkPath: "",
     updateApkUri: "",
+    updateApkFile: "",
     quickAddOpen: false,
     appNotice: "",
     appNoticeType: "success",
@@ -1573,8 +1597,19 @@ new Vue({
           directory: Directory.Cache,
           encoding: Encoding.Base64,
         });
+        this.updateApkFile = fileName;
         this.updateApkUri = result.uri;
         this.updateApkPath = String(result.uri || "").replace(/^file:\/\//, "");
+        try {
+          const info = await Filesystem.stat({
+            path: fileName,
+            directory: Directory.Cache,
+          });
+          if (info?.path) this.updateApkPath = String(info.path).replace(/^file:\/\//, "");
+          if (info?.uri) this.updateApkUri = info.uri;
+        } catch (error) {
+          console.warn("读取 APK 路径失败，使用 uri", error);
+        }
         this.showNotice("下载完成，点击安装即可");
       } catch (error) {
         console.warn("应用内下载失败，回退浏览器", error);
@@ -1587,19 +1622,33 @@ new Vue({
       }
     },
     async launchApkInstaller() {
-      try {
-        if (Capacitor.isNativePlatform()) {
-          await UpdateInstaller.install({
-            uri: this.updateApkUri,
-            path: this.updateApkPath,
-          });
+      const payload = {
+        fileName: this.updateApkFile || "",
+        path: this.updateApkPath || "",
+        uri: this.updateApkUri || "",
+      };
+      if (Capacitor.isNativePlatform()) {
+        try {
+          await UpdateInstaller.install(payload);
           return;
+        } catch (error) {
+          console.warn("安装器失败，尝试备用路径", error);
+          try {
+            await UpdateInstaller.install({
+              ...payload,
+              path: this.updateApkFile || payload.path,
+            });
+            return;
+          } catch (error2) {
+            console.warn("安装器仍失败", error2);
+            this.showNotice("无法拉起安装，请在系统提示中允许安装应用", "error");
+            return;
+          }
         }
-        await Browser.open({ url: this.updateApkUri || PAGES_APK_URL });
-      } catch (error) {
-        console.warn("安装器调用失败", error);
-        await Browser.open({ url: PAGES_APK_URL });
       }
+      await Browser.open({
+        url: apkUrlWithCacheBust(PAGES_APK_URL, this.updateInfo?.version || ""),
+      });
     },
     showNotice(message) {
       const cleanMessage = String(message)
@@ -2088,8 +2137,12 @@ new Vue({
         const posterPath = photo.poster.split("/couple-photos/")[1];
         await remoteDelete(posterPath);
       }
+      // 记墓碑，避免 5 秒云同步把这条记录又合并回来
+      const deleted = { ...(this.state._deleted || {}) };
+      deleted[String(photo.id)] = Date.now();
+      this.$set(this.state, "_deleted", deleted);
       this.state.photos = this.state.photos.filter(
-        (item) => item.id !== photo.id
+        (item) => String(item.id) !== String(photo.id)
       );
       this.showNotice("照片已删除");
     },
