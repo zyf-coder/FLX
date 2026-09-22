@@ -23,34 +23,10 @@ const MUSIC_TRACKS = [
     file: "duo-xingyun-preview.m4a",
   },
   {
-    id: "guang-yun-ting-jian",
-    title: "光影轻语",
-    artist: "Kevin MacLeod",
-    file: "guang-yun-ting-jian.mp3",
-  },
-  {
-    id: "xin-dong-xu-qu",
-    title: "心动序曲",
-    artist: "Kevin MacLeod",
-    file: "xin-dong-xu-qu.mp3",
-  },
-  {
-    id: "wei-xiao-xin-shi",
-    title: "微笑心事",
-    artist: "Kevin MacLeod",
-    file: "wei-xiao-xin-shi.mp3",
-  },
-  {
-    id: "chen-guang-lian-qu",
-    title: "晨光恋曲",
-    artist: "Chad Crouch",
-    file: "chen-guang-lian-qu.mp3",
-  },
-  {
-    id: "yuan-hang-qing-shu",
-    title: "远航情书",
-    artist: "Chad Crouch",
-    file: "yuan-hang-qing-shu.mp3",
+    id: "he-tang-yue-se",
+    title: "荷塘月色",
+    artist: "凤凰传奇",
+    file: "he-tang-yue-se.wav",
   },
 ];
 const MUSIC_TRACK_KEY = "only-us-music-track";
@@ -71,7 +47,7 @@ const apkUrlWithCacheBust = (url, version = "") =>
   `${url}${url.includes("?") ? "&" : "?"}v=${encodeURIComponent(
     version || "latest"
   )}&cb=${Date.now()}`;
-const WEB_VERSION = "2.2.8";
+const WEB_VERSION = "2.2.9";
 const BOUND_EMAIL_ACCOUNTS = {
   a: {
     emailHash:
