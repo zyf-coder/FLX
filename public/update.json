@@ -1,6 +1,6 @@
 {
-  "version": "2.2.11",
-  "versionCode": 49,
-  "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android-2.2.11.apk",
-  "notes": "安装失败自动改用浏览器下载安装；更新弹窗增加「浏览器安装」入口。"
+  "version": "2.2.12",
+  "versionCode": 50,
+  "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android-2.2.12.apk",
+  "notes": "更新安装改为先直接拉起系统安装，不再被权限判断误拦；失败自动浏览器安装。"
 }
