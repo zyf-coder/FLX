@@ -1,6 +1,6 @@
 {
-  "version": "2.2.14",
-  "versionCode": 52,
-  "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android-2.2.14.apk",
-  "notes": "修复未来信/更新弹窗按钮排版；安装改为系统安装器，不再自动跳浏览器。"
+  "version": "2.2.15",
+  "versionCode": 53,
+  "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android-2.2.15.apk",
+  "notes": "未来信表单改为 rules 校验，错误提示显示在字段下方。"
 }
