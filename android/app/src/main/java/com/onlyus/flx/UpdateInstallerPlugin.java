@@ -1,5 +1,6 @@
 package com.onlyus.flx;
 
+import android.content.ClipData;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
@@ -16,6 +17,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
@@ -186,6 +188,7 @@ public class UpdateInstallerPlugin extends Plugin {
         };
         for (File candidate : candidates) {
             if (candidate == null || !candidate.exists()) continue;
+            // 1) FileProvider + ACTION_VIEW + ClipData
             try {
                 Uri apkUri = FileProvider.getUriForFile(
                     getContext(),
@@ -196,19 +199,31 @@ public class UpdateInstallerPlugin extends Plugin {
                 intent.setDataAndType(apkUri, "application/vnd.android.package-archive");
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+                intent.setClipData(ClipData.newRawUri("apk", apkUri));
+                try {
+                    getContext().grantUriPermission(
+                        "com.android.packageinstaller",
+                        apkUri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    );
+                    getContext().grantUriPermission(
+                        "com.google.android.packageinstaller",
+                        apkUri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    );
+                } catch (Exception ignored) {}
                 if (getActivity() != null) getActivity().startActivity(intent);
                 else getContext().startActivity(intent);
                 return null;
             } catch (Exception e) {
                 last = e;
             }
+            // 2) PackageInstaller session
             try {
-                Intent intent = new Intent(Intent.ACTION_VIEW);
-                intent.setDataAndType(Uri.fromFile(candidate), "application/vnd.android.package-archive");
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                if (getActivity() != null) getActivity().startActivity(intent);
-                else getContext().startActivity(intent);
-                return null;
+                String msg = installWithPackageInstaller(candidate);
+                if (msg == null) return null;
+                last = new Exception(msg);
             } catch (Exception e) {
                 last = e;
             }
@@ -216,6 +231,45 @@ public class UpdateInstallerPlugin extends Plugin {
         return last != null
             ? (last.getClass().getSimpleName() + ": " + last.getMessage())
             : "no install activity";
+    }
+
+    private String installWithPackageInstaller(File file) throws Exception {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
+            return "sdk too low";
+        }
+        android.content.pm.PackageInstaller installer =
+            getContext().getPackageManager().getPackageInstaller();
+        android.content.pm.PackageInstaller.SessionParams params =
+            new android.content.pm.PackageInstaller.SessionParams(
+                android.content.pm.PackageInstaller.SessionParams.MODE_FULL_INSTALL
+            );
+        int sessionId = installer.createSession(params);
+        android.content.pm.PackageInstaller.Session session = installer.openSession(sessionId);
+        try {
+            OutputStream out = session.openWrite("onlyus.apk", 0, file.length());
+            InputStream in = new FileInputStream(file);
+            byte[] buf = new byte[64 * 1024];
+            int n;
+            while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+            session.fsync(out);
+            out.close();
+            in.close();
+            Intent confirm = new Intent(Intent.ACTION_VIEW);
+            confirm.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            android.app.PendingIntent pi = android.app.PendingIntent.getActivity(
+                getContext(),
+                sessionId,
+                confirm,
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT
+                    | android.app.PendingIntent.FLAG_MUTABLE
+            );
+            session.commit(pi.getIntentSender());
+            return null;
+        } finally {
+            try {
+                session.close();
+            } catch (Exception ignored) {}
+        }
     }
 
     private File ensureCacheCopy(File file) {

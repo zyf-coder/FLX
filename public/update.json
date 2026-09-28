@@ -1,6 +1,6 @@
 {
-  "version": "2.2.13",
-  "versionCode": 51,
-  "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android-2.2.13.apk",
-  "notes": "未来信时间选择改为卡片样式，文案统一为「预定时间」。"
+  "version": "2.2.14",
+  "versionCode": 52,
+  "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android-2.2.14.apk",
+  "notes": "修复未来信/更新弹窗按钮排版；安装改为系统安装器，不再自动跳浏览器。"
 }

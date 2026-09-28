@@ -47,7 +47,7 @@ const apkUrlWithCacheBust = (url, version = "") =>
   `${url}${url.includes("?") ? "&" : "?"}v=${encodeURIComponent(
     version || "latest"
   )}&cb=${Date.now()}`;
-const WEB_VERSION = "2.2.13";
+const WEB_VERSION = "2.2.14";
 const BOUND_EMAIL_ACCOUNTS = {
   a: {
     emailHash:
@@ -1649,7 +1649,7 @@ new Vue({
             this.showNotice("请允许 Only Us 安装应用后再点一次安装", "error");
             return;
           }
-          console.warn("原生下载安装失败，回退 JS 下载", error);
+          console.warn("原生下载失败，回退 JS 下载", error);
         }
       }
       this.updateDownloading = true;
@@ -1713,25 +1713,22 @@ new Vue({
         path: this.updateApkPath || "",
         uri: this.updateApkUri === "native" ? "" : this.updateApkUri || "",
       };
-      if (Capacitor.isNativePlatform()) {
-        try {
-          await UpdateInstaller.install(payload);
-          this.showNotice("已拉起系统安装");
-          return;
-        } catch (error) {
-          const message = String(error?.message || error || "");
-          console.warn("原生安装失败", message, error);
-          if (message.includes("NEED_INSTALL_PERMISSION") || message.includes("need install permission")) {
-            this.showNotice("已打开设置：请允许 Only Us 安装应用，再回来点安装", "error");
-            return;
-          }
-          this.showNotice(`安装失败：${message.slice(0, 80)}`, "error");
-          // 仍尝试浏览器，避免死路
-          await this.openBrowserInstall();
+      if (!Capacitor.isNativePlatform()) {
+        this.showNotice("请在手机 APP 内使用安装功能", "info");
+        return;
+      }
+      try {
+        await UpdateInstaller.install(payload);
+        this.showNotice("已拉起系统安装");
+      } catch (error) {
+        const message = String(error?.message || error || "");
+        console.warn("原生安装失败", message, error);
+        if (message.includes("NEED_INSTALL_PERMISSION") || message.includes("need install permission")) {
+          this.showNotice("请允许 Only Us 安装应用后再点安装", "error");
           return;
         }
+        this.showNotice(`安装失败：${message.slice(0, 60)}`, "error");
       }
-      await this.openBrowserInstall();
     },
     async openBrowserInstall() {
       const version = String(this.updateInfo?.version || "");
