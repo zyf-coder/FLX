@@ -47,7 +47,7 @@ const apkUrlWithCacheBust = (url, version = "") =>
   `${url}${url.includes("?") ? "&" : "?"}v=${encodeURIComponent(
     version || "latest"
   )}&cb=${Date.now()}`;
-const WEB_VERSION = "2.2.20";
+const WEB_VERSION = "2.2.21";
 const BOUND_EMAIL_ACCOUNTS = {
   a: {
     emailHash:
@@ -175,6 +175,16 @@ const defaults = {
     { id: 2, name: "说爱你", icon: "💗", log: [] },
     { id: 3, name: "晚安吻", icon: "🌙", log: [] },
   ],
+  watchParty: {
+    url: "",
+    source: "url",
+    title: "",
+    playing: false,
+    time: 0,
+    updatedAt: 0,
+    by: "",
+    chat: [],
+  },
 };
 const STATE_LIST_KEYS = [
   "photos",
@@ -579,6 +589,23 @@ const mergeCloudState = (local, remote) => {
     mergeListKeepRecentLocal(local?.photos, recovered.photos, remoteUpdatedAt, "uploadedAt"),
     deleted
   );
+  // 一起看：以 updatedAt 较新的一方为准，并并入双方聊天
+  const localWatch = local?.watchParty || {};
+  const remoteWatch = recovered.watchParty || {};
+  const localWatchAt = Number(localWatch.updatedAt) || 0;
+  const remoteWatchAt = Number(remoteWatch.updatedAt) || 0;
+  const baseWatch = localWatchAt >= remoteWatchAt ? localWatch : remoteWatch;
+  const chatMap = new Map();
+  [...(remoteWatch.chat || []), ...(localWatch.chat || [])].forEach((item) => {
+    if (item?.id != null) chatMap.set(String(item.id), item);
+  });
+  recovered.watchParty = {
+    ...remoteWatch,
+    ...baseWatch,
+    chat: [...chatMap.values()]
+      .sort((a, b) => (Number(a.time) || 0) - (Number(b.time) || 0))
+      .slice(-80),
+  };
   recovered.profile = { ...(local?.profile || {}), ...(recovered.profile || {}) };
   recovered.meta = { ...(local?.meta || {}), ...(recovered.meta || {}) };
   return recovered;
@@ -888,6 +915,12 @@ new Vue({
         { required: true, message: "请选择预定时间" },
       ],
     },
+    watchDraftUrl: "",
+    watchDraftTitle: "",
+    watchDraftSource: "url",
+    watchChatText: "",
+    watchSyncAt: 0,
+    watchChatRef: null,
     dayCalendar: "solar",
     editingDay: null,
     loginPhotoIndex: 0,
@@ -907,6 +940,7 @@ new Vue({
       ["story", "book-heart", "故事"],
       ["me", "circle-user-round", "我的"],
       ["sweet", "heart-handshake", "甜蜜"],
+      ["watch", "clapperboard", "一起看"],
     ],
   },
   computed: {
@@ -934,6 +968,26 @@ new Vue({
     currentTrackSrc() {
       const track = this.currentTrack;
       return track ? MUSIC_URL(track.file) : "";
+    },
+    watchParty() {
+      return (
+        this.state.watchParty || {
+          url: "",
+          source: "url",
+          title: "",
+          playing: false,
+          time: 0,
+          updatedAt: 0,
+          by: "",
+          chat: [],
+        }
+      );
+    },
+    watchIsDirect() {
+      return this.watchParty.source === "url" && !!this.watchParty.url;
+    },
+    watchChatList() {
+      return this.watchParty.chat || [];
     },
     startDate() {
       return new Date(this.state.profile.since).toLocaleDateString("zh-CN", {
@@ -1154,7 +1208,13 @@ new Vue({
     }
     if (cloud.enabled) {
       this.cloudSync = "正在同步云端";
-      this.cloudPoller = setInterval(() => this.pullCloudState(), 5000);
+      const scheduleCloudPoll = () => {
+        this.cloudPoller = setTimeout(() => {
+          this.pullCloudState();
+          scheduleCloudPoll();
+        }, this.tab === "watch" ? 2000 : 5000);
+      };
+      scheduleCloudPoll();
       // 云端同步放到后台，不阻塞首屏；仅在确认云端为空时才初始化数据。
       this.syncInitialCloud();
     }
@@ -1168,7 +1228,7 @@ new Vue({
       navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`);
   },
   beforeDestroy() {
-    clearInterval(this.cloudPoller);
+    clearTimeout(this.cloudPoller);
     clearInterval(this.loginPhotoTimer);
   },
   methods: {
@@ -1451,6 +1511,8 @@ new Vue({
           if ((merged.photos?.length || 0) > remotePhotoCount) {
             await this.persistState(this.state, true);
           }
+          // 一起看：远端进度变了则拉齐本地播放器
+          this.applyWatchRemoteToPlayer();
           this.cloudSync = "已获取云端最新数据";
         }
       } catch (error) {
@@ -1608,6 +1670,137 @@ new Vue({
         this.updateDismissedVersion = String(this.updateInfo.version);
       }
       this.updateModal = false;
+    },
+    formatWatchTime(sec) {
+      const s = Math.max(0, Math.floor(Number(sec) || 0));
+      const m = Math.floor(s / 60);
+      const r = s % 60;
+      return `${String(m).padStart(2, "0")}:${String(r).padStart(2, "0")}`;
+    },
+    formatWatchClock(ts) {
+      try {
+        return new Date(Number(ts) || 0).toLocaleTimeString("zh-CN", {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+      } catch (error) {
+        return "";
+      }
+    },
+    applyWatchSource(source, url, title) {
+      const current = this.state.watchParty || {};
+      this.state.watchParty = {
+        ...current,
+        source,
+        url: url || "",
+        title: title || current.title || "",
+        updatedAt: Date.now(),
+        by: this.loginUser,
+      };
+    },
+    startWatchFromDraft() {
+      const url = this.watchDraftUrl.trim();
+      const title = this.watchDraftTitle.trim() || "一起看";
+      const source = this.watchDraftSource;
+      if (source === "url") {
+        if (!/^https?:\/\//i.test(url)) {
+          this.showNotice("请填写以 http 开头的视频直链", "error");
+          return;
+        }
+        this.applyWatchSource("url", url, title);
+        this.showNotice("已同步视频链接，双方可一起播放");
+        return;
+      }
+      // 爱奇艺/腾讯/优酷：应用内无法控制播放器，外跳并用聊天对表
+      this.applyWatchSource(source, url || this.platformUrl(source), title);
+      this.showNotice("已同步平台地址，请双方打开并用聊天对进度");
+    },
+    platformUrl(source) {
+      if (source === "iqiyi") return "https://m.iqiyi.com/";
+      if (source === "tencent") return "https://m.v.qq.com/";
+      if (source === "youku") return "https://m.youku.com/";
+      return "";
+    },
+    openWatchPlatform() {
+      const url = this.watchParty.url || this.platformUrl(this.watchParty.source);
+      if (!url) return;
+      if (Capacitor.isNativePlatform()) {
+        Browser.open({ url });
+      } else {
+        window.open(url, "_blank");
+      }
+    },
+    writeWatchParty(patch) {
+      const prev = this.state.watchParty || {};
+      const next = {
+        ...prev,
+        ...patch,
+        updatedAt: Date.now(),
+        by: this.loginUser,
+      };
+      this.state.watchParty = next;
+      return next;
+    },
+    onWatchPlay() {
+      this.writeWatchParty({ playing: true });
+    },
+    onWatchPause() {
+      const video = this.$refs.watchVideo;
+      this.writeWatchParty({
+        playing: false,
+        time: Math.floor(video?.currentTime || 0),
+      });
+    },
+    onWatchSeeked() {
+      const video = this.$refs.watchVideo;
+      if (!video) return;
+      this.writeWatchParty({ time: Math.floor(video.currentTime || 0) });
+    },
+    onWatchTimeUpdate() {
+      const now = Date.now();
+      if (now - this.watchSyncAt < 4000) return;
+      this.watchSyncAt = now;
+      const video = this.$refs.watchVideo;
+      if (!video) return;
+      this.writeWatchParty({
+        playing: !video.paused,
+        time: Math.floor(video.currentTime || 0),
+      });
+    },
+    sendWatchChat() {
+      const text = this.watchChatText.trim();
+      if (!text) return;
+      const chat = [...(this.state.watchParty?.chat || [])];
+      chat.push({
+        id: createId(),
+        user: this.loginUser,
+        text,
+        time: Date.now(),
+      });
+      this.writeWatchParty({ chat: chat.slice(-80) });
+      this.watchChatText = "";
+      this.$nextTick(() => {
+        const box = this.$refs.watchChatRef;
+        if (box) box.scrollTop = box.scrollHeight;
+      });
+    },
+    applyWatchRemoteToPlayer() {
+      if (this.tab !== "watch") return;
+      const party = this.state.watchParty;
+      const video = this.$refs.watchVideo;
+      if (!party || party.by === this.loginUser) return;
+      if (!video || !this.watchIsDirect) return;
+      const target = Number(party.time) || 0;
+      if (Math.abs(video.currentTime - target) > 1.5) {
+        try {
+          video.currentTime = target;
+        } catch (error) {}
+      }
+      if (party.playing && video.paused) {
+        video.play().catch(() => {});
+      } else if (!party.playing && !video.paused) {
+        video.pause();
+      }
     },
     async installUpdate() {
       if (!this.updateInfo) return;
@@ -2750,6 +2943,48 @@ new Vue({
    <div class="sweet-panel" v-if="sweetTab==='stats'">
     <div class="stat-grid"><article v-for="s in sweetStats" :key="s.label" class="soft-card stat-card"><strong>{{s.value}}<small>{{s.unit}}</small></strong><span>{{s.label}}</span></article></div>
     <div class="soft-card quote-box"><b>每日情话</b><p>{{loveQuote}}</p></div>
+   </div>
+  </section>
+  <section class="page watch-page" v-if="tab==='watch'"><div class="page-head"><div><h2>一起看</h2><p>同步播放、同步进度，边看边聊。</p></div></div>
+   <div class="watch-card">
+    <div class="watch-form">
+     <label class="watch-seg">
+      <button type="button" :class="{active:watchDraftSource==='url'}" @click="watchDraftSource='url'">视频直链</button>
+      <button type="button" :class="{active:watchDraftSource==='iqiyi'}" @click="watchDraftSource='iqiyi'">爱奇艺</button>
+      <button type="button" :class="{active:watchDraftSource==='tencent'}" @click="watchDraftSource='tencent'">腾讯视频</button>
+      <button type="button" :class="{active:watchDraftSource==='youku'}" @click="watchDraftSource='youku'">优酷</button>
+     </label>
+     <label class="watch-field"><span>标题（可选）</span><input v-model="watchDraftTitle" maxlength="24" placeholder="例如：周末电影"></label>
+     <label class="watch-field"><span>{{ watchDraftSource==='url' ? '视频地址（mp4 等直链）' : '剧集/视频链接（可选）' }}</span><input v-model="watchDraftUrl" maxlength="300" :placeholder="watchDraftSource==='url'?'https://example.com/movie.mp4':'粘贴分享链接，也可稍后打开'"></label>
+     <button class="primary" type="button" @click="startWatchFromDraft"><v-icon name="radio"/>同步到双方</button>
+    </div>
+    <div class="watch-stage">
+     <template v-if="watchIsDirect">
+      <video ref="watchVideo" class="watch-video" :src="watchParty.url" controls playsinline preload="metadata" @play="onWatchPlay" @pause="onWatchPause" @seeked="onWatchSeeked" @timeupdate="onWatchTimeUpdate"></video>
+     </template>
+     <template v-else>
+      <div class="watch-platform">
+       <v-icon name="clapperboard"/>
+       <b>{{ watchParty.title || '平台视频' }}</b>
+       <p>爱奇艺 / 腾讯 / 优酷等无法在应用内控制播放器，已同步链接。</p>
+       <button class="primary" type="button" @click="openWatchPlatform"><v-icon name="external-link"/>打开视频页面</button>
+      </div>
+     </template>
+     <div class="watch-meta">
+      <span>状态：{{ watchParty.playing ? '播放中' : '已暂停' }} · {{ formatWatchTime(watchParty.time) }}</span>
+      <small>{{ watchParty.by ? (userName(watchParty.by)+' 刚刚同步') : '等待任一方开始' }}</small>
+     </div>
+    </div>
+    <div class="watch-chat">
+     <div class="watch-chat-list" ref="watchChatRef">
+      <article v-for="m in watchChatList" :key="m.id" :class="{me:m.user===loginUser}">
+       <b>{{ userName(m.user) }}</b><em>{{ formatWatchClock(m.time) }}</em>
+       <p>{{ m.text }}</p>
+      </article>
+      <div class="empty-state" v-if="!watchChatList.length"><v-icon name="messages-square"/><b>边看边聊</b><span>说说此刻的想法吧</span></div>
+     </div>
+     <form class="watch-chat-input" @submit.prevent="sendWatchChat"><input v-model="watchChatText" maxlength="120" placeholder="发送弹幕/聊天…"><button class="primary" type="submit">发送</button></form>
+    </div>
    </div>
   </section>
  </main><footer><v-icon name="heart" fill="currentColor"/> Only Us · 愿每一天都值得纪念</footer>
