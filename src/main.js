@@ -47,7 +47,7 @@ const apkUrlWithCacheBust = (url, version = "") =>
   `${url}${url.includes("?") ? "&" : "?"}v=${encodeURIComponent(
     version || "latest"
   )}&cb=${Date.now()}`;
-const WEB_VERSION = "2.2.21";
+const WEB_VERSION = "2.2.22";
 const BOUND_EMAIL_ACCOUNTS = {
   a: {
     emailHash:
@@ -921,6 +921,8 @@ new Vue({
     watchChatText: "",
     watchSyncAt: 0,
     watchChatRef: null,
+    watchEmbedOpen: false,
+    watchEmbedUrl: "",
     dayCalendar: "solar",
     editingDay: null,
     loginPhotoIndex: 0,
@@ -1724,11 +1726,20 @@ new Vue({
     openWatchPlatform() {
       const url = this.watchParty.url || this.platformUrl(this.watchParty.source);
       if (!url) return;
-      if (Capacitor.isNativePlatform()) {
-        Browser.open({ url });
-      } else {
-        window.open(url, "_blank");
-      }
+      // 优先应用内打开（iframe），接近“播在软件里”；部分平台会拦截内嵌则回退系统浏览器
+      this.watchEmbedUrl = url;
+      this.watchEmbedOpen = true;
+    },
+    closeWatchEmbed() {
+      this.watchEmbedOpen = false;
+      this.watchEmbedUrl = "";
+    },
+    openWatchExternal() {
+      const url = this.watchEmbedUrl || this.watchParty.url || this.platformUrl(this.watchParty.source);
+      if (!url) return;
+      this.closeWatchEmbed();
+      if (Capacitor.isNativePlatform()) Browser.open({ url });
+      else window.open(url, "_blank");
     },
     writeWatchParty(patch) {
       const prev = this.state.watchParty || {};
@@ -2966,8 +2977,11 @@ new Vue({
       <div class="watch-platform">
        <v-icon name="clapperboard"/>
        <b>{{ watchParty.title || '平台视频' }}</b>
-       <p>爱奇艺 / 腾讯 / 优酷等无法在应用内控制播放器，已同步链接。</p>
-       <button class="primary" type="button" @click="openWatchPlatform"><v-icon name="external-link"/>打开视频页面</button>
+       <p>「投屏」是投到电视，不能投进本 APP。可在此<strong>应用内打开</strong>播放，并用聊天对进度。</p>
+       <div class="watch-platform-actions">
+        <button class="primary" type="button" @click="openWatchPlatform"><v-icon name="monitor-play"/>应用内打开</button>
+        <button type="button" class="ghost-btn" @click="openWatchExternal">用系统浏览器</button>
+       </div>
       </div>
      </template>
      <div class="watch-meta">
@@ -2987,6 +3001,13 @@ new Vue({
     </div>
    </div>
   </section>
+  <div class="watch-embed-overlay" v-if="watchEmbedOpen">
+   <div class="watch-embed-panel">
+    <header><b>应用内播放</b><span>播放进度无法自动同步，可用聊天对表</span><button type="button" title="关闭" @click="closeWatchEmbed"><v-icon name="x"/></button></header>
+    <iframe v-if="watchEmbedUrl" class="watch-embed-frame" :src="watchEmbedUrl" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen referrerpolicy="no-referrer"></iframe>
+    <footer><button type="button" class="ghost-btn" @click="openWatchExternal">改用系统浏览器</button><button class="primary" type="button" @click="closeWatchEmbed">回到一起看</button></footer>
+   </div>
+  </div>
  </main><footer><v-icon name="heart" fill="currentColor"/> Only Us · 愿每一天都值得纪念</footer>
  <div class="overlay" v-if="modal" @mousedown.self="modal=null"><div class="modal" :class="{'day-modal':modal==='day'}"><button class="close" @click="modal=null"><v-icon name="x"/></button><small v-if="modal==='day'">ONLY US CALENDAR</small><h3>{{modal==='day'?'添加纪念日':'记录故事'}}</h3><form @submit.prevent="saveModal"><label class="form-field"><span>纪念日名称</span><input required name="title" placeholder="例如：第一次旅行"></label><label class="form-field" v-if="modal==='day'"><span><v-icon name="calendar-heart"/>日期类型</span><select name="calendar" v-model="dayCalendar"><option value="solar">公历</option><option value="lunar">农历</option></select></label><div class="date-time-grid" v-if="modal==='day'"><label class="form-field" v-if="dayCalendar==='solar'"><span><v-icon name="calendar-days"/>公历日期</span><input required name="date" type="date"></label><label class="form-field" v-else><span><v-icon name="calendar-days"/>农历日期</span><div class="lunar-date-select"><select name="lunarMonth"><option v-for="m in 12" :value="m">{{m}}月</option></select><select name="lunarDay"><option v-for="d in 30" :value="d">{{d}}日</option></select></div></label><label class="form-field"><span><v-icon name="clock-3"/>时间</span><div class="time-select"><input name="hour" aria-label="小时" type="number" inputmode="numeric" min="0" max="23" value="9"><b>:</b><input name="minute" aria-label="分钟" type="number" inputmode="numeric" min="0" max="59" step="5" value="0"></div></label></div><label class="form-field" v-else><span>日期</span><input required name="date" type="date"></label><label class="remind-field" v-if="modal==='day'"><span><v-icon name="bell-ring"/>提前提醒</span><select name="remindDays"><option value="0">当天提醒</option><option value="1" selected>提前1天</option><option value="3">提前3天</option><option value="7">提前7天</option><option value="30">提前30天</option></select></label><label class="calendar-toggle" v-if="modal==='day'"><span><i><v-icon name="calendar-plus"/></i><b>添加到手机日历</b><small>保存后打开系统日历确认</small></span><input type="checkbox" name="addCalendar" checked><i/></label><textarea v-if="modal==='story'" required name="text" placeholder="那天发生了什么…"/><button class="primary">{{modal==='day'?'保存并设置提醒':'保存'}}</button></form></div></div>
  <div class="overlay" v-if="photoEditing" @mousedown.self="photoEditing=null"><div class="modal photo-edit-modal"><button class="close" @click="photoEditing=null"><v-icon name="x"/></button><small>PHOTO MEMORY</small><h3>编辑照片纪念</h3><form @submit.prevent="savePhotoText"><label class="form-field"><span>纪念标题</span><input required v-model="photoDraft.title" maxlength="30" placeholder="例如：第一次旅行"></label><label class="form-field"><span>拍摄日期</span><input required type="date" v-model="photoDraft.date"></label><label class="form-field"><span>纪念文字</span><textarea v-model="photoDraft.description" maxlength="200" placeholder="写下这张照片背后的故事…"/></label><button class="primary"><v-icon name="check"/>保存纪念内容</button></form></div></div>

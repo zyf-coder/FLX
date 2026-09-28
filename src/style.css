@@ -4481,3 +4481,67 @@ footer svg {
 .watch-chat-input .primary {
   min-width: 96px;
 }
+
+.watch-platform-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.ghost-btn {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: #8a7280;
+  border-radius: 12px;
+  padding: 12px 16px;
+}
+.watch-embed-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(30, 24, 28, 0.55);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+.watch-embed-panel {
+  width: min(920px, 100%);
+  height: min(78dvh, 640px);
+  background: #fff;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.watch-embed-panel header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.watch-embed-panel header span {
+  flex: 1;
+  color: #a89099;
+  font-size: 12px;
+}
+.watch-embed-panel header button {
+  border: 0;
+  background: #fff0f4;
+  border-radius: 10px;
+  width: 36px;
+  height: 36px;
+}
+.watch-embed-frame {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  background: #171217;
+}
+.watch-embed-panel footer {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding: 12px 14px;
+  border-top: 1px solid var(--line);
+}
