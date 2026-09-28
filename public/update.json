@@ -1,6 +1,6 @@
 {
-  "version": "2.2.22",
-  "versionCode": 60,
-  "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android-2.2.22.apk",
-  "notes": "一起看支持应用内打开爱奇艺/腾讯/优酷页面；说明投屏到电视无法投进本 APP。"
+  "version": "2.2.23",
+  "versionCode": 61,
+  "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android-2.2.23.apk",
+  "notes": "手机端底部菜单、首页与快捷添加增加「一起看」入口。"
 }
