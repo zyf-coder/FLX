@@ -633,10 +633,6 @@ body,
   min-width: 120px;
   justify-content: center;
 }
-.update-dialog > div:last-child button.primary {
-  flex: 1 1 100%;
-  order: -1;
-}
 .later {
   border: 1px solid var(--line);
   background: #fff;
@@ -2493,12 +2489,9 @@ footer svg {
   gap: 10px;
 }
 .update-dialog > div:last-child button {
-  min-width: 0;
+  flex: 1 1 calc(50% - 5px);
+  min-width: 120px;
   justify-content: center;
-}
-.update-dialog > div:last-child button.primary {
-  flex: 1 1 100%;
-  order: -1;
 }
 .update-dialog > div:last-child button.later {
   flex: 1 1 calc(50% - 5px);

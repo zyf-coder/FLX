@@ -47,7 +47,7 @@ const apkUrlWithCacheBust = (url, version = "") =>
   `${url}${url.includes("?") ? "&" : "?"}v=${encodeURIComponent(
     version || "latest"
   )}&cb=${Date.now()}`;
-const WEB_VERSION = "2.2.17";
+const WEB_VERSION = "2.2.18";
 const BOUND_EMAIL_ACCOUNTS = {
   a: {
     emailHash:
@@ -827,6 +827,7 @@ new Vue({
     updateApkPath: "",
     updateApkUri: "",
     updateApkFile: "",
+    updateDismissedVersion: "",
     quickAddOpen: false,
     appNotice: "",
     appNoticeType: "success",
@@ -1575,17 +1576,11 @@ new Vue({
             this.updateProgress = 0;
           }
           this.updateInfo = update;
-          const reminded = localStorage.getItem(UPDATE_REMINDER_KEY) || "";
-          const [remindedVersion, remindedAt] = reminded.split("@");
-          const remindAge = Date.now() - Number(remindedAt || 0);
-          const alreadyReminded =
-            remindedVersion === String(update.version) && remindAge < 24 * 3600 * 1000;
-          if (manual || !alreadyReminded) {
+          // 同一版本本次启动只弹一次；点「暂不更新」后本次不再弹，下次打开 APP 再提示
+          const dismissedThisSession =
+            this.updateDismissedVersion === String(update.version);
+          if (manual || !dismissedThisSession) {
             this.updateModal = true;
-            localStorage.setItem(
-              UPDATE_REMINDER_KEY,
-              `${update.version}@${Date.now()}`
-            );
           }
         } else if (manual) {
           this.showNotice("当前已是最新版本");
@@ -1594,6 +1589,12 @@ new Vue({
         if (manual) this.showNotice("暂时无法检查更新");
         console.warn("检查更新失败", error);
       }
+    },
+    dismissUpdate() {
+      if (this.updateInfo?.version) {
+        this.updateDismissedVersion = String(this.updateInfo.version);
+      }
+      this.updateModal = false;
     },
     async installUpdate() {
       if (!this.updateInfo) return;
@@ -2744,7 +2745,7 @@ new Vue({
  <div class="overlay confirm-overlay" v-if="logoutConfirm"><div class="confirm-dialog"><span><v-icon name="log-out"/></span><h3>退出当前账号？</h3><p>退出后需要重新验证密码才能进入。</p><div><button @click="logoutConfirm=false">取消</button><button class="danger" @click="confirmLogout">确认退出</button></div></div></div>
  <div class="overlay account-overlay" v-if="accountModal==='security'"><div class="account-dialog security-dialog"><button class="account-close" @click="accountModal=''"><v-icon name="x"/></button><button class="account-back" v-if="accountView!=='menu'" @click="accountView='menu';accountStep='form'"><v-icon name="chevron-left"/>返回</button><span class="account-icon"><v-icon :name="accountView==='password'?'key-round':accountView==='email'?'mail':'shield-check'"/></span><h3>{{accountView==='password'?'修改密码':accountView==='email'?'绑定邮箱':'账号与安全'}}</h3><p v-if="accountView==='menu'">管理当前账号的登录与验证方式</p><div class="security-menu" v-if="accountView==='menu'"><button @click="openAccountSection('password')"><i><v-icon name="key-round"/></i><span><b>修改密码</b><small>定期更换密码，保护账号安全</small></span><v-icon name="chevron-right"/></button><button @click="openAccountSection('email')"><i><v-icon name="mail"/></i><span><b>绑定邮箱</b><small>当前绑定 {{state.meta.accounts[loginUser]?.emailMasked||'未绑定'}}</small></span><v-icon name="chevron-right"/></button></div><form v-else-if="accountView==='password'" class="account-fields" @submit.prevent="changePassword"><input required name="current" type="password" placeholder="当前密码"><input required name="next" type="password" minlength="6" placeholder="新密码（至少6位）"><input required name="confirmNext" type="password" minlength="6" placeholder="再次输入新密码"><button class="primary">保存新密码</button></form><template v-else><div v-if="accountStep==='form'" class="account-fields"><p class="bound-phone">已绑定邮箱： {{state.meta.accounts[loginUser]?.emailMasked}}</p><input v-model="emailInput" inputmode="email" placeholder="输入新的邮箱地址"><button class="primary" @click="sendEmailOtp">发送验证码</button></div><div v-else class="account-fields"><p>验证码已发送至 {{emailInput}}</p><input v-model="otpInput" inputmode="numeric" maxlength="8" placeholder="邮箱验证码"><button class="primary" @click="verifyEmailOtp">确认绑定</button></div></template></div></div>
  <div class="overlay confirm-overlay" v-if="deleteConfirm"><div class="confirm-dialog"><span><v-icon name="trash-2"/></span><h3>{{deleteConfirm.title}}</h3><p>{{deleteConfirm.text}}</p><div><button @click="deleteConfirm=null">取消</button><button class="danger" @click="runDeleteConfirm">确认删除</button></div></div></div>
- <div class="overlay update-overlay" v-if="updateModal&&updateInfo"><div class="update-dialog"><div class="update-art"><v-icon name="sparkles"/><span>NEW</span></div><button class="close" title="稍后更新" @click="updateModal=false"><v-icon name="x"/></button><small>ONLY US UPDATE</small><h3>发现新版本 {{updateInfo.version}}</h3><p class="update-current">当前版本 {{currentVersion}} · 目标 {{updateInfo.version}}</p><p>本次更新</p><ul><li v-for="line in updateInfo.notes.split('；')" :key="line"><v-icon name="check-circle-2"/>{{line}}</li></ul><div class="update-dl" v-if="updateDownloading || updateApkUri"><div class="update-dl-head"><b>{{updateApkUri ? '下载完成' : '正在下载更新'}}</b><span>{{updateProgress}}%</span></div><i class="update-dl-bar"><em :style="{width:updateProgress+'%'}"/></i></div><div><button class="later" @click="updateModal=false">暂不更新</button><button class="later" type="button" @click="openBrowserInstall">浏览器安装</button><button class="primary" :disabled="updateDownloading" @click="installUpdate"><v-icon :name="updateDownloading?'loader-circle':updateApkUri?'package-check':'download'"/>{{updateDownloading?'下载中 '+updateProgress+'%':updateApkUri?'点击安装':'下载并安装'}}</button></div></div></div>
+ <div class="overlay update-overlay" v-if="updateModal&&updateInfo"><div class="update-dialog"><div class="update-art"><v-icon name="sparkles"/><span>NEW</span></div><button class="close" title="稍后更新" @click="dismissUpdate"><v-icon name="x"/></button><small>ONLY US UPDATE</small><h3>发现新版本 {{updateInfo.version}}</h3><p class="update-current">当前版本 {{currentVersion}} · 目标 {{updateInfo.version}}</p><p>本次更新</p><ul><li v-for="line in updateInfo.notes.split('；')" :key="line"><v-icon name="check-circle-2"/>{{line}}</li></ul><div class="update-dl" v-if="updateDownloading || updateApkUri"><div class="update-dl-head"><b>{{updateApkUri ? '下载完成' : '正在下载更新'}}</b><span>{{updateProgress}}%</span></div><i class="update-dl-bar"><em :style="{width:updateProgress+'%'}"/></i></div><div><button class="later" type="button" @click="dismissUpdate">暂不更新</button><button class="primary" :disabled="updateDownloading" @click="installUpdate"><v-icon :name="updateDownloading?'loader-circle':updateApkUri?'package-check':'download'"/>{{updateDownloading?'下载中 '+updateProgress+'%':updateApkUri?'点击安装':'下载更新'}}</button></div></div></div>
  <div class="overlay quick-overlay" v-if="quickAddOpen" @mousedown.self="quickAddOpen=false"><div class="quick-sheet"><i/><h3>记录此刻</h3><div><button @click="chooseQuickAdd('photo')"><span><v-icon name="camera"/></span>上传照片</button><button @click="chooseQuickAdd('notes')"><span><v-icon name="message-circle"/></span>写悄悄话</button><button @click="chooseQuickAdd('day')"><span><v-icon name="calendar-heart"/></span>加纪念日</button><button @click="chooseQuickAdd('future')"><span><v-icon name="mail"/></span>写未来信</button></div><button class="sheet-cancel" @click="quickAddOpen=false">取消</button></div></div>
 </div><div class="loading load-error" v-else-if="loadError"><v-icon name="cloud-off"/><b>暂时无法读取云端数据</b><span>请检查网络后重试，避免显示不准确的数据。</span><button @click="reloadPage">重新连接</button></div><div class="loading" v-else><v-icon name="heart" fill="currentColor"/>正在打开我们的故事…</div>`,
 });
