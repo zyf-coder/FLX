@@ -1,6 +1,6 @@
 {
-  "version": "2.2.24",
-  "versionCode": 62,
-  "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android-2.2.24.apk",
-  "notes": "修复首页快捷卡片文字换行错乱，双列卡片排版更整齐。"
+  "version": "2.2.25",
+  "versionCode": 63,
+  "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android-2.2.25.apk",
+  "notes": "首页快捷卡片改为单列长卡，文字不再挤行换行。"
 }
