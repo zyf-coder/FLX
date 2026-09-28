@@ -1,6 +1,6 @@
 {
-  "version": "2.2.21",
-  "versionCode": 59,
-  "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android-2.2.21.apk",
-  "notes": "新增「一起看」：直链视频同步播放进度；爱奇艺/腾讯/优酷同步链接并支持聊天对表。"
+  "version": "2.2.22",
+  "versionCode": 60,
+  "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android-2.2.22.apk",
+  "notes": "一起看支持应用内打开爱奇艺/腾讯/优酷页面；说明投屏到电视无法投进本 APP。"
 }
