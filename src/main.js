@@ -47,7 +47,7 @@ const apkUrlWithCacheBust = (url, version = "") =>
   `${url}${url.includes("?") ? "&" : "?"}v=${encodeURIComponent(
     version || "latest"
   )}&cb=${Date.now()}`;
-const WEB_VERSION = "2.2.15";
+const WEB_VERSION = "2.2.16";
 const BOUND_EMAIL_ACCOUNTS = {
   a: {
     emailHash:
@@ -1710,7 +1710,8 @@ new Vue({
         } catch (error) {
           console.warn("读取 APK 路径失败，使用 uri", error);
         }
-        this.showNotice("下载完成，点击安装即可");
+        this.showNotice("下载完成，正在打开安装");
+        await this.launchApkInstaller();
       } catch (error) {
         console.warn("应用内下载失败", error);
         this.showNotice("下载失败，请重试或手动安装", "error");
@@ -1728,18 +1729,38 @@ new Vue({
         this.showNotice("请在手机 APP 内使用安装功能", "info");
         return;
       }
+      // 1) WebView JS 桥（最稳）
       try {
-        await UpdateInstaller.install(payload);
-        this.showNotice("已拉起系统安装");
+        const bridge = window.OnlyUsInstaller;
+        if (bridge && typeof bridge.installApk === "function") {
+          bridge.installApk(payload.fileName || "", payload.path || "", payload.uri || "");
+          this.showNotice("正在打开系统安装…");
+          return;
+        }
+      } catch (error) {
+        console.warn("JS 桥安装失败", error);
+      }
+      // 2) Capacitor 插件
+      try {
+        if (UpdateInstaller && typeof UpdateInstaller.install === "function") {
+          await UpdateInstaller.install(payload);
+          this.showNotice("已拉起系统安装");
+          return;
+        }
       } catch (error) {
         const message = String(error?.message || error || "");
-        console.warn("原生安装失败", message, error);
+        if (message.includes("not implemented")) {
+          this.showNotice("安装组件未加载，请点「浏览器安装」", "error");
+          return;
+        }
         if (message.includes("NEED_INSTALL_PERMISSION") || message.includes("need install permission")) {
           this.showNotice("请允许 Only Us 安装应用后再点安装", "error");
           return;
         }
         this.showNotice(`安装失败：${message.slice(0, 60)}`, "error");
+        return;
       }
+      this.showNotice("安装组件不可用，请点「浏览器安装」", "error");
     },
     async openBrowserInstall() {
       const version = String(this.updateInfo?.version || "");
