@@ -1,6 +1,6 @@
 {
-  "version": "2.2.19",
-  "versionCode": 57,
-  "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android-2.2.19.apk",
-  "notes": "调整头像爱心、底部菜单与加号按钮配色为主题粉。"
+  "version": "2.2.20",
+  "versionCode": 58,
+  "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android-2.2.20.apk",
+  "notes": "修复头像中间爱心颜色（图标 class 透传），爱心显示为主题粉。"
 }

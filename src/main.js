@@ -47,7 +47,7 @@ const apkUrlWithCacheBust = (url, version = "") =>
   `${url}${url.includes("?") ? "&" : "?"}v=${encodeURIComponent(
     version || "latest"
   )}&cb=${Date.now()}`;
-const WEB_VERSION = "2.2.19";
+const WEB_VERSION = "2.2.20";
 const BOUND_EMAIL_ACCOUNTS = {
   a: {
     emailHash:
@@ -687,7 +687,20 @@ Vue.component("v-icon", {
   functional: true,
   props: ["name", "fill"],
   render(h, ctx) {
-    return drawIcon(h, icons[iconKey(ctx.props.name)], ctx.props.fill);
+    const vnode = drawIcon(h, icons[iconKey(ctx.props.name)], ctx.props.fill);
+    const data = vnode.data || {};
+    const incoming = ctx.data || {};
+    vnode.data = {
+      ...data,
+      class: incoming.class,
+      staticClass: [data.staticClass, incoming.staticClass]
+        .filter(Boolean)
+        .join(" ") || undefined,
+      style: incoming.style,
+      attrs: { ...(data.attrs || {}), ...(incoming.attrs || {}) },
+      on: incoming.on,
+    };
+    return vnode;
   },
 });
 Vue.component("love-timeline", {

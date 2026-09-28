@@ -477,13 +477,18 @@ body,
   width: 13px;
 }
 .profile-heart {
-  color: var(--pink) !important;
+  color: #e65b8b !important;
   width: 28px;
 }
-.profile-heart svg {
-  color: var(--pink) !important;
-  fill: var(--pink) !important;
-  stroke: var(--pink) !important;
+.profile-heart,
+.profile-heart svg,
+.profile-heart svg path,
+.profile-heart svg circle,
+.profile-heart svg line,
+.profile-heart svg polyline {
+  color: #e65b8b !important;
+  fill: #e65b8b !important;
+  stroke: #e65b8b !important;
 }
 .settings-list {
   display: grid;
