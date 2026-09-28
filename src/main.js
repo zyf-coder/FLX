@@ -47,7 +47,7 @@ const apkUrlWithCacheBust = (url, version = "") =>
   `${url}${url.includes("?") ? "&" : "?"}v=${encodeURIComponent(
     version || "latest"
   )}&cb=${Date.now()}`;
-const WEB_VERSION = "2.2.11";
+const WEB_VERSION = "2.2.12";
 const BOUND_EMAIL_ACCOUNTS = {
   a: {
     emailHash:
@@ -1719,18 +1719,14 @@ new Vue({
           this.showNotice("已拉起系统安装");
           return;
         } catch (error) {
-          const message = String(error?.message || "");
+          const message = String(error?.message || error || "");
+          console.warn("原生安装失败", message, error);
           if (message.includes("NEED_INSTALL_PERMISSION") || message.includes("need install permission")) {
-            this.showNotice("请打开 Only Us 的「安装未知应用」后再点安装", "error");
+            this.showNotice("已打开设置：请允许 Only Us 安装应用，再回来点安装", "error");
             return;
           }
-          if (message.includes("APK_MISSING") || message.includes("APK file not found")) {
-            this.showNotice("本地没有安装包，正在用浏览器下载安装", "info");
-            await this.openBrowserInstall();
-            return;
-          }
-          console.warn("原生安装失败，改用浏览器", error);
-          this.showNotice("原生安装不可用，改用浏览器下载安装", "info");
+          this.showNotice(`安装失败：${message.slice(0, 80)}`, "error");
+          // 仍尝试浏览器，避免死路
           await this.openBrowserInstall();
           return;
         }

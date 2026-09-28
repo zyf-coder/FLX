@@ -25,26 +25,23 @@ public class UpdateInstallerPlugin extends Plugin {
     @PluginMethod
     public void install(PluginCall call) {
         try {
-            if (needsInstallPermission()) {
-                openUnknownSourcesSettings();
-                resolveOnMain(call, error("NEED_INSTALL_PERMISSION", "need install permission"), true);
-                return;
-            }
             File file = resolveApk(
                 call.getString("fileName"),
                 call.getString("path"),
                 call.getString("uri")
             );
             if (file == null || !file.exists() || file.length() < 1024) {
-                resolveOnMain(
-                    call,
-                    error("APK_MISSING", "APK file not found: " + safeListCache()),
-                    true
-                );
+                // 有些机型 canRequestPackageInstalls 误报，先别拦；包不在才报错
+                resolveOnMain(call, error("APK_MISSING", "APK file not found: " + safeListCache()), true);
                 return;
             }
             String result = launchInstaller(file);
             if (result != null) {
+                if (needsInstallPermission()) {
+                    openUnknownSourcesSettings();
+                    resolveOnMain(call, error("NEED_INSTALL_PERMISSION", "need install permission: " + result), true);
+                    return;
+                }
                 resolveOnMain(call, error("LAUNCH_FAILED", result), true);
                 return;
             }
@@ -66,11 +63,7 @@ public class UpdateInstallerPlugin extends Plugin {
             resolveOnMain(call, error("BAD_ARGS", "url/fileName required"), true);
             return;
         }
-        if (needsInstallPermission()) {
-            openUnknownSourcesSettings();
-            resolveOnMain(call, error("NEED_INSTALL_PERMISSION", "need install permission"), true);
-            return;
-        }
+        // 不在下载前强拦权限：先下载并尝试安装，失败再看权限
         call.setKeepAlive(true);
         new Thread(() -> {
             try {
@@ -118,6 +111,11 @@ public class UpdateInstallerPlugin extends Plugin {
                 notifyListeners("progress", progress);
                 String result = launchInstaller(target);
                 if (result != null) {
+                    if (needsInstallPermission()) {
+                        openUnknownSourcesSettings();
+                        resolveOnMain(call, error("NEED_INSTALL_PERMISSION", "need install permission: " + result), true);
+                        return;
+                    }
                     resolveOnMain(call, error("LAUNCH_FAILED", result), true);
                     return;
                 }
@@ -181,75 +179,55 @@ public class UpdateInstallerPlugin extends Plugin {
     /** return null on success, or error text */
     private String launchInstaller(File file) {
         Exception last = null;
-        // 1) FileProvider + ACTION_VIEW
-        try {
-            File shared = ensureExternalCopy(file);
-            Uri apkUri = FileProvider.getUriForFile(
-                getContext(),
-                getContext().getPackageName() + ".fileprovider",
-                shared != null ? shared : file
-            );
-            Intent intent = new Intent(Intent.ACTION_VIEW);
-            intent.setDataAndType(apkUri, "application/vnd.android.package-archive");
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            if (getActivity() != null) getActivity().startActivity(intent);
-            else getContext().startActivity(intent);
-            return null;
-        } catch (Exception e) {
-            last = e;
-        }
-        // 2) cache FileProvider
-        try {
-            File cacheCopy = new File(getContext().getCacheDir(), file.getName());
-            if (!cacheCopy.getAbsolutePath().equals(file.getAbsolutePath())) {
-                copyFile(file, cacheCopy);
+        File[] candidates = new File[] {
+            ensureExternalCopy(file),
+            ensureCacheCopy(file),
+            file,
+        };
+        for (File candidate : candidates) {
+            if (candidate == null || !candidate.exists()) continue;
+            try {
+                Uri apkUri = FileProvider.getUriForFile(
+                    getContext(),
+                    getContext().getPackageName() + ".fileprovider",
+                    candidate
+                );
+                Intent intent = new Intent(Intent.ACTION_VIEW);
+                intent.setDataAndType(apkUri, "application/vnd.android.package-archive");
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                if (getActivity() != null) getActivity().startActivity(intent);
+                else getContext().startActivity(intent);
+                return null;
+            } catch (Exception e) {
+                last = e;
             }
-            Uri apkUri = FileProvider.getUriForFile(
-                getContext(),
-                getContext().getPackageName() + ".fileprovider",
-                cacheCopy
-            );
-            Intent intent = new Intent(Intent.ACTION_VIEW);
-            intent.setDataAndType(apkUri, "application/vnd.android.package-archive");
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            if (getActivity() != null) getActivity().startActivity(intent);
-            else getContext().startActivity(intent);
-            return null;
-        } catch (Exception e) {
-            last = e;
-        }
-        // 3) legacy file:// (old devices)
-        try {
-            Intent intent = new Intent(Intent.ACTION_VIEW);
-            intent.setDataAndType(Uri.fromFile(file), "application/vnd.android.package-archive");
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            if (getActivity() != null) getActivity().startActivity(intent);
-            else getContext().startActivity(intent);
-            return null;
-        } catch (Exception e) {
-            last = e;
-        }
-        // 4) package installer explicitly
-        try {
-            Intent intent = new Intent("android.intent.action.INSTALL_PACKAGE");
-            intent.setData(FileProvider.getUriForFile(
-                getContext(),
-                getContext().getPackageName() + ".fileprovider",
-                file
-            ));
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            if (getActivity() != null) getActivity().startActivity(intent);
-            else getContext().startActivity(intent);
-            return null;
-        } catch (Exception e) {
-            last = e;
+            try {
+                Intent intent = new Intent(Intent.ACTION_VIEW);
+                intent.setDataAndType(Uri.fromFile(candidate), "application/vnd.android.package-archive");
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                if (getActivity() != null) getActivity().startActivity(intent);
+                else getContext().startActivity(intent);
+                return null;
+            } catch (Exception e) {
+                last = e;
+            }
         }
         return last != null
             ? (last.getClass().getSimpleName() + ": " + last.getMessage())
-            : "unknown installer error";
+            : "no install activity";
+    }
+
+    private File ensureCacheCopy(File file) {
+        try {
+            File dst = new File(getContext().getCacheDir(), file.getName());
+            if (!dst.getAbsolutePath().equals(file.getAbsolutePath())) {
+                copyFile(file, dst);
+            }
+            return dst.exists() ? dst : null;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private File ensureExternalCopy(File file) {
