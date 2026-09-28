@@ -1,6 +1,6 @@
 {
-  "version": "2.2.18",
-  "versionCode": 56,
-  "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android-2.2.18.apk",
-  "notes": "更新弹窗精简为暂不更新/下载更新；点暂不更新后下次打开 APP 再提醒。"
+  "version": "2.2.19",
+  "versionCode": 57,
+  "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android-2.2.19.apk",
+  "notes": "调整头像爱心、底部菜单与加号按钮配色为主题粉。"
 }
