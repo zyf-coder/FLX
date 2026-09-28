@@ -477,8 +477,13 @@ body,
   width: 13px;
 }
 .profile-heart {
-  color: var(--pink);
-  width: 26px;
+  color: var(--pink) !important;
+  width: 28px;
+}
+.profile-heart svg {
+  color: var(--pink) !important;
+  fill: var(--pink) !important;
+  stroke: var(--pink) !important;
 }
 .settings-list {
   display: grid;
@@ -2159,7 +2164,7 @@ footer svg {
     position: relative;
     border: 0;
     background: transparent;
-    color: #8d7b82;
+    color: #b48a98;
     height: 62px;
     display: flex;
     flex-direction: column;
@@ -2188,7 +2193,7 @@ footer svg {
     height: 22px;
   }
   .bottom-nav button.active {
-    color: var(--pink);
+    color: var(--deep);
     font-weight: 600;
   }
   .bottom-nav .bottom-add {
@@ -2198,10 +2203,10 @@ footer svg {
     justify-self: center;
     margin-top: -20px;
     border-radius: 50%;
-    background: #29282d;
+    background: linear-gradient(145deg, #e65b8b, #ba3765);
     color: #fff;
     border: 5px solid #fff;
-    box-shadow: 0 8px 18px #3e30363d;
+    box-shadow: 0 8px 18px rgba(230, 91, 139, 0.35);
   }
   .bottom-nav .bottom-add svg {
     width: 28px;
