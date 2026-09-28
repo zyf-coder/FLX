@@ -1,6 +1,6 @@
 {
-  "version": "2.2.16",
-  "versionCode": 54,
-  "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android-2.2.16.apk",
-  "notes": "修复 UpdateInstaller 插件未实现：改用 WebView JS 桥直接拉起系统安装。"
+  "version": "2.2.17",
+  "versionCode": 55,
+  "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android-2.2.17.apk",
+  "notes": "测试版本：用于验证应用内下载安装流程。"
 }
