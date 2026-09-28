@@ -47,7 +47,7 @@ const apkUrlWithCacheBust = (url, version = "") =>
   `${url}${url.includes("?") ? "&" : "?"}v=${encodeURIComponent(
     version || "latest"
   )}&cb=${Date.now()}`;
-const WEB_VERSION = "2.2.23";
+const WEB_VERSION = "2.2.24";
 const BOUND_EMAIL_ACCOUNTS = {
   a: {
     emailHash:
