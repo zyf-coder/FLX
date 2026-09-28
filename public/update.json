@@ -1,6 +1,6 @@
 {
-  "version": "2.2.17",
-  "versionCode": 55,
-  "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android-2.2.17.apk",
-  "notes": "测试版本：用于验证应用内下载安装流程。"
+  "version": "2.2.18",
+  "versionCode": 56,
+  "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android-2.2.18.apk",
+  "notes": "更新弹窗精简为暂不更新/下载更新；点暂不更新后下次打开 APP 再提醒。"
 }
