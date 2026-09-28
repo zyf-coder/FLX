@@ -1,6 +1,6 @@
 {
-  "version": "2.2.20",
-  "versionCode": 58,
-  "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android-2.2.20.apk",
-  "notes": "修复头像中间爱心颜色（图标 class 透传），爱心显示为主题粉。"
+  "version": "2.2.21",
+  "versionCode": 59,
+  "androidUrl": "https://zyf-coder.github.io/FLX/downloads/OnlyUs-Android-2.2.21.apk",
+  "notes": "新增「一起看」：直链视频同步播放进度；爱奇艺/腾讯/优酷同步链接并支持聊天对表。"
 }

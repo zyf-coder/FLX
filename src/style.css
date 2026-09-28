@@ -4343,3 +4343,141 @@ footer svg {
   }
 }
 
+
+
+/* Watch together */
+.watch-card {
+  display: grid;
+  gap: 14px;
+}
+.watch-form {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+}
+.watch-seg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.watch-seg button {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: #8a7280;
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 13px;
+}
+.watch-seg button.active {
+  background: #fff0f5;
+  border-color: #f0c3d5;
+  color: var(--deep);
+  font-weight: 600;
+}
+.watch-field {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  color: #8a7280;
+}
+.watch-field input {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 14px;
+}
+.watch-stage {
+  background: #171217;
+  border-radius: 16px;
+  overflow: hidden;
+}
+.watch-video {
+  display: block;
+  width: 100%;
+  max-height: 420px;
+  background: #171217;
+}
+.watch-platform {
+  min-height: 220px;
+  display: grid;
+  place-items: center;
+  gap: 10px;
+  padding: 24px;
+  color: #fff;
+  text-align: center;
+}
+.watch-platform svg {
+  width: 42px;
+  height: 42px;
+}
+.watch-platform p {
+  margin: 0;
+  color: #e8cfd9;
+  font-size: 13px;
+  max-width: 280px;
+}
+.watch-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  color: #f2e4ea;
+  font-size: 12px;
+  background: #221a20;
+}
+.watch-chat {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+}
+.watch-chat-list {
+  max-height: 280px;
+  overflow: auto;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+.watch-chat-list article {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #fff6f9;
+}
+.watch-chat-list article.me {
+  background: #ffe8f1;
+}
+.watch-chat-list article b {
+  font-size: 12px;
+}
+.watch-chat-list article em {
+  font-style: normal;
+  color: #a89099;
+  font-size: 11px;
+  text-align: right;
+}
+.watch-chat-list article p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #5c4750;
+}
+.watch-chat-input {
+  display: flex;
+  gap: 8px;
+  padding: 12px;
+  border-top: 1px solid var(--line);
+}
+.watch-chat-input input {
+  flex: 1;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.watch-chat-input .primary {
+  min-width: 96px;
+}
