@@ -245,13 +245,12 @@ body,
   border: 1px solid var(--line);
   border-radius: 18px;
   padding: 22px;
-  display: grid;
-  grid-template-columns: 1fr auto;
+  display: flex;
+  flex-direction: column;
   gap: 14px;
   margin-bottom: 22px;
 }
 .letter-form textarea {
-  grid-column: 1/3;
   border: 1px solid var(--line);
   border-radius: 14px;
   background: #fff8fa;
@@ -259,24 +258,9 @@ body,
   padding: 16px;
   resize: vertical;
   outline: 0;
-}
-.letter-form label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #806c74;
-}
-.letter-form label svg {
-  width: 18px;
-  color: var(--pink);
-}
-.letter-form input {
-  border: 1px solid var(--line);
-  padding: 8px;
-  border-radius: 12px;
+  width: 100%;
 }
 .letter-form .letter-date {
-  grid-column: 1/2;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -328,10 +312,9 @@ body,
   outline: 2px solid #f5b6cd;
   outline-offset: 1px;
 }
-.letter-form .primary {
-  grid-column: 2/3;
-  grid-row: 2;
-  align-self: center;
+.letter-form > .primary {
+  width: 100%;
+  justify-content: center;
 }
 .letters {
   display: grid;
@@ -624,11 +607,17 @@ body,
 }
 .update-dialog > div:last-child {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
 }
 .update-dialog > div:last-child button {
-  flex: 1;
+  flex: 1 1 calc(50% - 5px);
+  min-width: 120px;
   justify-content: center;
+}
+.update-dialog > div:last-child button.primary {
+  flex: 1 1 100%;
+  order: -1;
 }
 .later {
   border: 1px solid var(--line);
@@ -2229,28 +2218,15 @@ footer svg {
     padding-top: 18px;
   }
   .letter-form {
-    grid-template-columns: 1fr;
     padding: 15px;
   }
-  .letter-form textarea {
-    grid-column: auto;
-  }
-  .letter-form label {
-    justify-content: space-between;
-  }
   .letter-form .letter-date {
-    grid-column: auto;
     flex-wrap: wrap;
   }
   .letter-form .letter-date input {
     width: 100%;
     max-width: none;
-    margin-left: 50px;
-  }
-  .letter-form .primary {
-    grid-column: auto;
-    grid-row: auto;
-    justify-content: center;
+    margin-left: 0;
   }
   .letters article {
     grid-template-columns: 38px 1fr 30px;
@@ -2494,13 +2470,20 @@ footer svg {
   height: 19px;
 }
 .update-dialog > div:last-child {
-  display: grid;
-  grid-template-columns: 1fr 1.15fr;
+  display: flex;
+  flex-wrap: wrap;
   gap: 10px;
 }
 .update-dialog > div:last-child button {
   min-width: 0;
   justify-content: center;
+}
+.update-dialog > div:last-child button.primary {
+  flex: 1 1 100%;
+  order: -1;
+}
+.update-dialog > div:last-child button.later {
+  flex: 1 1 calc(50% - 5px);
 }
 @media (max-width: 800px) {
   .update-overlay {
