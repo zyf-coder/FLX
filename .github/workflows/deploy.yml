@@ -29,9 +29,10 @@ jobs:
       - run: npm ci
       - run: npm run build
         env:
-          VITE_SUPABASE_URL: https://qbrlwvxnqqjyzqftpvhj.supabase.co
-          VITE_SUPABASE_ANON_KEY: YOUR_SUPABASE_ANON_KEY
-          VITE_COUPLE_ID: YOUR_COUPLE_ID
+          # 从仓库 Secrets 注入，切勿在此硬编码（见 README「部署配置」）
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_COUPLE_ID: ${{ secrets.VITE_COUPLE_ID }}
       - uses: actions/configure-pages@v5
         with:
           enablement: true

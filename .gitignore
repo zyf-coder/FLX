@@ -4,4 +4,7 @@ dist/
 .deep-copilot/
 release/
 .dev-server.log
-.env.local
+.git-backup/
+.env
+.env.*
+!.env.example
