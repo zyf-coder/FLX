@@ -135,6 +135,30 @@ https://zyf-coder.github.io/FLX/
 
 `update.json` 与 APK 位于 `public/`，构建时随站点一起发布。
 
+### GitHub Secrets（必配）
+
+仓库**不包含**任何真实密钥。构建所需环境变量通过仓库 Secrets 注入：
+
+> 仓库 → Settings → Secrets and variables → Actions → New repository secret
+
+| Secret 名称 | 说明 |
+|-------------|------|
+| `VITE_SUPABASE_URL` | Supabase 项目地址 |
+| `VITE_SUPABASE_ANON_KEY` | Supabase anon / publishable key |
+| `VITE_COUPLE_ID` | 两人共享数据的私密标识（长随机串） |
+
+三者缺一，Pages 构建会得到空配置，导致云端同步与相册上传失效。
+
+---
+
+## 安全须知
+
+- `.env*` 已写入 `.gitignore`，**切勿**提交真实值
+- `VITE_COUPLE_ID` 是访问两人数据的钥匙，一旦泄露他人即可读写共享状态，建议定期更换
+- Supabase `anon` key 本身设计为可公开，但仍须配合 RLS 策略使用
+- 更换 `VITE_COUPLE_ID` 后，两台设备需同步更新配置并重新登录
+- 前端打包产物（APK / 网页）必然包含可读的 `VITE_*`，因此**不要**在前端存放任何服务端密钥
+
 ---
 
 ## 隐私
@@ -142,6 +166,7 @@ https://zyf-coder.github.io/FLX/
 - 所有数据仅存于你自己的 Supabase 项目与设备本地
 - 账号为双人制，共享一个 `VITE_COUPLE_ID`
 - 「允许安装未知应用」仅在使用应用内更新时需要开启
+- 仓库不存放任何真实密钥，构建依赖 GitHub Secrets
 
 ---
 
